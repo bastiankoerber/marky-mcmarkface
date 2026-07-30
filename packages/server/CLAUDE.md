@@ -19,7 +19,7 @@ In `middleware/security.ts`:
 |---|---|
 | `Host` must be localhost | DNS rebinding |
 | `Origin` must be known | cross-origin reads |
-| `X-Pilcrow: 1` required on `/api/*` | CSRF — a `<form>` cannot set custom headers |
+| `X-Pilcrow` must carry this launch's random key | CSRF — a `<form>` cannot set custom headers. The key is regenerated per launch, written to `~/.pilcrow/session` (0600) for the Vite proxy, and injected as a `<meta>` into the served HTML in production. |
 
 `/gh/callback` is deliberately *not* under `/api`, because a top-level navigation from GitHub
 cannot send a custom header. Its authentication is the `state` parameter.

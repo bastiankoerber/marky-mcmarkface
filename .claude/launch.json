@@ -5,7 +5,7 @@
       "name": "pilcrow",
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/dev.mjs"],
-      "port": 5173
+      "port": 5180
     }
   ]
 }

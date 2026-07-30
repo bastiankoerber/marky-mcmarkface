@@ -12,14 +12,23 @@ pnpm install
 pnpm dev          # API on 127.0.0.1:7423, UI on localhost:5180
 ```
 
-Node 20.19+ and pnpm 10+. On first run, connect with the GitHub CLI button if you have `gh`
-authenticated — that needs no configuration at all.
+macOS, Node 20.19+, pnpm 10+.
+
+On first run, connect with the **GitHub CLI** button if you have `gh` authenticated — that needs
+no configuration at all and is the fastest path. If you don't, the setup screen walks you through
+registering a one-off OAuth app (about a minute, once per machine); this repository does not ship
+a client ID. See [Connecting](README.md#connecting).
+
+`@napi-rs/keyring` is an optional dependency. If it will not build on your machine, Pilcrow falls
+back to `~/.pilcrow/token.json` at mode 0600 and says so on startup.
+
+There is no linter or formatter — don't go looking for a config. Match the surrounding code.
 
 ## Before you open a pull request
 
 ```bash
 npx tsc --noEmit -p tsconfig.json
-pnpm vitest run
+pnpm vitest run          # five suites; `pnpm test` is the same thing
 pnpm build
 ```
 

@@ -20,17 +20,36 @@ and the comment system have quietly decoupled.
 
 **3. The stamps are the whole contract.**
 
-`anchoring.ts` reads only `data-pilcrow-pos` / `data-pilcrow-x` from the DOM. It never touches
-the mdast tree at runtime, which is why it works identically on a server-rendered string and a
-live React tree. Keep it that way.
+`anchoring.ts` reads only the stamps from the DOM. It never touches the mdast tree at runtime,
+which is why it works identically on a server-rendered string and a live React tree.
+
+**4. The position attribute is nonced. Do not un-nonce it.**
+
+`data-` attributes survive DOMPurify, so a pull request author can write `data-pilcrow-pos`
+themselves — and did, in testing: highlighting *"This release only fixes typos."* produced a
+comment quoting an unrelated sentence about vendor access. The renderer therefore emits
+`data-pilcrow-pos-<nonce>` with a per-render token minted in `MarkdownViewer.tsx`, carried on the
+root as `data-pilcrow-nonce` (outside the sanitised HTML), and `anchoring.ts` derives the
+attribute name from it. `integrity.test.ts` covers both directions, including a control that
+reproduces the attack with the nonce removed.
+
+The bare attribute name is the fallback for tests and the spike, which render without a nonce.
+
+**5. The sanitiser config is load-bearing, and duplicated.**
+
+`MarkdownViewer.tsx` strips `style` and `class` (a PR could otherwise hide content from the
+rendered view, or overlay the Approve button) and adds `target` back — safe only because the
+renderer always emits `rel`. `integrity.test.ts` mirrors this config; if you change one, change
+both, or the tests stop testing what ships.
 
 ## The attributes
 
 | Attribute | Meaning |
 |---|---|
-| `data-pilcrow-pos="<start>:<end>"` | source char span, on every element |
+| `data-pilcrow-pos-<nonce>="<start>:<end>"` | source char span, on every element (bare name only without a nonce) |
 | `data-pilcrow-x` | this element's text maps 1:1 onto `source[start..end]` |
 | `data-pilcrow-change` | `added` / `removed` / `changed`, top-level blocks only |
+| `data-pilcrow-nonce` | on the root, host-rendered — the key to the position attribute |
 
 ## After any change here
 

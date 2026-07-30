@@ -258,13 +258,26 @@ export function Review({
     );
   }
 
-  const resolved = file ? registry.resolve(file.path) : undefined;
-  const Viewer = resolved?.plugin.component as React.ComponentType<Record<string, unknown>> | undefined;
-  const useSourceViewer = mode === 'source' || !/\.mdx?$/i.test(file?.path ?? '');
-  const SourceViewer = registry.get('pilcrow.source-diff')?.plugin.component as
+  /*
+   * The registry decides, and its answer is used.
+   *
+   * This used to call resolve() and then throw the result away for anything that was not
+   * .md/.mdx, hard-coding those to the source diff — which meant a contributed viewer could
+   * never render, no matter what it claimed. The whole plugin system was inert.
+   *
+   * Non-Markdown files still land on the source diff, but because it claims `**​/*` at rank
+   * 9000 and nothing beats it, not because of a special case here. A contributed viewer with a
+   * lower rank now wins, which is what `docs/writing-a-viewer.md` promises.
+   */
+  const sourceDiff = registry.get('pilcrow.source-diff')?.plugin.component as
     | React.ComponentType<Record<string, unknown>>
     | undefined;
-  const Active = useSourceViewer ? SourceViewer : Viewer;
+  const resolved = file ? registry.resolve(file.path) : undefined;
+  // 'source' is an explicit request for the raw diff, so it overrides resolution.
+  const Active =
+    mode === 'source'
+      ? sourceDiff
+      : ((resolved?.plugin.component as React.ComponentType<Record<string, unknown>> | undefined) ?? sourceDiff);
 
   return (
     <div className="review">

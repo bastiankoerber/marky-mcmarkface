@@ -44,14 +44,28 @@ unchanged prose says so instead of letting you write a comment that gets rejecte
 
 ## Connecting
 
-One click, then approve on GitHub. Pilcrow requests `repo` and `read:org` — the minimum GitHub
-offers, since classic OAuth has no read-only private scope and posting reviews requires write.
+**This repository does not ship a GitHub client ID yet**, so the one-click browser flow is not
+available on a fresh clone. In order of least effort:
 
-Your token goes into the macOS Keychain and never reaches the browser.
+1. **GitHub CLI** — if `gh` is authenticated, the first screen offers *Continue as @you*. Nothing
+   to configure. This is the path to use today.
+2. **Register once** — the setup screen walks through creating an OAuth app and pasting the
+   client ID back into the app. One minute, once per machine. Supply a client secret too and
+   sign-in becomes one click with no codes; leave it out and Pilcrow uses device codes, which
+   need no secret.
+3. **Paste a token** — for GitHub Enterprise Server, or orgs that block OAuth apps.
 
-If you have the GitHub CLI authenticated, there is a one-click path using that instead. Over SSH
-or on a headless box, Pilcrow falls back to a device code. Details, including how a fork
-registers its own GitHub app, are in [`.env.example`](.env.example).
+Once a maintainer registers the project's own app and commits its client ID to
+`BUNDLED_CLIENT_ID` in `packages/server/src/auth/oauth.ts`, everyone gets (1) with no setup —
+which is what `gh` and VS Code do with their own IDs.
+
+Pilcrow requests `repo` and `read:org` — the minimum GitHub offers, since classic OAuth has no
+read-only private scope and posting reviews requires write. Your token goes into the macOS
+Keychain (or `~/.pilcrow/token.json`, mode 0600, if the native keyring module is unavailable) and
+never reaches the browser.
+
+**Pilcrow will never ask you to paste a token in order to "reconnect".** If you see that, it did
+not come from us.
 
 ## Extending it
 
@@ -104,8 +118,11 @@ npx tsc --noEmit -p tsconfig.json
 
 ## Status
 
-Early, and honest about it. Reviewing works end to end against live pull requests. Not yet done:
-suggested edits have a model but no UI, viewed-state is local rather than synced to GitHub, and
+Early, and honest about it. Reviewing works end to end against live pull requests.
+
+Not yet done: no bundled client ID (see Connecting); suggested edits have a model but no UI;
+viewed-state lives in component state and is lost on reload; `capabilities.safe`, `postProcess`
+and `remarkPlugins` are declared in the viewer API but not yet acted on by the host; and
 npm-installable third-party viewers are still build-time only.
 
 Requires macOS, Node 20.19+, pnpm 10+.

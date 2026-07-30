@@ -20,9 +20,15 @@ the DOM as it emits it:
 
 | Attribute | Meaning |
 |---|---|
-| `data-pilcrow-pos="<start>:<end>"` | source char span, on every element |
+| `data-pilcrow-pos-<nonce>="<start>:<end>"` | source char span, on every element |
 | `data-pilcrow-x` | this element's text maps 1:1 onto `source[start..end]` |
 | `data-pilcrow-change` | `added` / `removed` / `changed`, on top-level blocks |
+| `data-pilcrow-nonce` | on the host-rendered root; the key to the position attribute |
+
+**The nonce is a security control, not a naming quirk.** `data-` attributes survive
+sanitisation, so a pull request author can write `data-pilcrow-pos` themselves and steer where
+your comment lands. A per-render token they cannot predict makes forged stamps unreadable. Tests
+and the spike render without one and see the bare attribute name.
 
 `describe()` walks up from a selection to the nearest stamp; `anchor()` walks back down. Neither
 touches the mdast tree at runtime, which is why the same code works on a server-rendered string
@@ -90,20 +96,15 @@ fails the build if the corrupted run *passes*.
 
 ## Results
 
-Real corpus — 77 Markdown files from two documentation repositories, 4,563 sampled selections:
+Run it rather than trusting a number written here — sample counts move with `--files` and
+`--samples`, and a stale figure in a document is worse than none.
 
-| | |
-|---|---|
-| exact (≤1 extra line) | 99.3% |
-| wide (>1 extra line) | 0.1% |
-| block-only (no exact stamp) | 0.6% |
-| **failed (wrong lines)** | **0.0%** |
-| round-tripped | 100.0% |
-| extra lines p50 / p90 / p99 | 0 / 0 / 0 |
+What has held on every run against real documentation repositories: **zero** wrong-line failures,
+round-trip at 100%, and a p99 of zero extra lines. The committed fixtures are smaller and
+synthetic, so they catch regressions rather than discovering new failure modes — run
+`--repos owner/name` against real repositories before a release.
 
-Committed fixtures (what CI runs) — 294 samples, 0 failures, 97.6% stamp-verified. Smaller and
-synthetic; it catches regressions rather than discovering new failure modes. Run against real
-repositories before a release.
+The gate passes only if **all three** hold: correct ≥ 95%, round-trip ≥ 95%, stamp-verified ≥ 90%.
 
 ## If you change the renderer
 

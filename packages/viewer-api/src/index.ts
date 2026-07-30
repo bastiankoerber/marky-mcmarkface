@@ -57,12 +57,22 @@ export interface AnchoringImpl {
   onLayoutChange(cb: () => void): () => void;
 }
 
+/**
+ * Declared capabilities.
+ *
+ * Honesty note: only `sourceMapping` carries meaning today, and even that is advisory — the host
+ * infers the real answer from whether a viewer calls `registerAnchoring`. The rest are recorded
+ * intent for a host that does not yet act on them. They are kept because they describe the
+ * viewer accurately and cost nothing; do **not** treat any of them as an enforced guarantee.
+ */
 export interface ViewerCapabilities {
   /** Can this viewer map DOM selection <-> source offsets? false => file-level comments only. */
   sourceMapping: boolean;
-  /** 'native' = renders its own diff. 'side-by-side' = host mounts two instances. */
+  /** Advisory. 'native' = renders its own diff; the host does not yet mount two instances. */
   diff: 'native' | 'side-by-side' | 'new-only';
+  /** Advisory. */
   anchorGranularity: 'char' | 'line' | 'block';
+  /** Advisory; no editing surface exists yet. */
   editable?: boolean;
 }
 
@@ -80,7 +90,13 @@ export interface ViewerManifest {
   rank?: number;
   /** 'option' means the user must pick it explicitly; it never auto-opens. */
   priority?: 'default' | 'option';
-  /** Does this viewer execute embedded content? Gates on the repo's trust decision. */
+  /**
+   * Does this viewer execute embedded content?
+   *
+   * **Not enforced.** Nothing in the host reads this yet, so it must not be relied on as a
+   * security control — a viewer is fully-privileged same-origin code either way. It is declared
+   * so the trust decision can be added later without a breaking change.
+   */
   safe?: boolean;
   capabilities: ViewerCapabilities;
 }
@@ -143,9 +159,13 @@ export interface ViewerPlugin<C = unknown> {
   manifest: ViewerManifest;
   /** Wrap in React.lazy so heavy deps land in their own chunk. */
   component: C;
-  /** Contribute unified/remark plugins into the shared parse pipeline. */
+  /** Reserved. The host does not yet contribute these into the parse pipeline. */
   remarkPlugins?: unknown[];
-  /** Cheap tier: transform the built-in renderer's DOM instead of replacing the view. */
+  /**
+   * Reserved. **Not called yet.** The intent is a cheap tier that transforms the built-in
+   * renderer's DOM instead of replacing the view (Mermaid, KaTeX). Declared so adding it later
+   * is additive; implementing against it today does nothing.
+   */
   postProcess?: (el: HTMLElement, ctx: PostProcessContext) => void | Promise<void>;
 }
 
@@ -159,8 +179,8 @@ export const DEFAULT_RANK = 500;
 export const BUILTIN_RANK = 100;
 
 // ---------------------------------------------------------------------------
-// Pure helpers. Kept here rather than in the host so viewers and the conformance
-// kit share exactly one implementation.
+// Pure helpers. Kept here rather than in the host so both sides share exactly one
+// implementation and cannot drift.
 // ---------------------------------------------------------------------------
 
 /** Byte-for-byte offset -> {line, column}, both 1-based, over LF-normalised text. */

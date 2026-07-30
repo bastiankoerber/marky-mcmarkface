@@ -25,7 +25,14 @@ export function App() {
 
   const loadStatus = useCallback(async () => {
     try {
-      setStatus(await api.authStatus());
+      const next = await api.authStatus();
+      // Show the "hello" screen on *any* path that just connected, not only OAuth. It exists to
+      // catch signing in as the wrong GitHub account, which is likeliest on the GitHub CLI path
+      // — `gh` may well be authenticated as a personal account rather than a work one.
+      setStatus((prev) => {
+        if (next.connected && !prev?.connected) setCelebrating(true);
+        return next;
+      });
     } catch (err) {
       setError((err as Error).message);
     }
@@ -47,7 +54,6 @@ export function App() {
     if (!outcome) return;
     history.replaceState(null, '', window.location.pathname);
     if (outcome.error) setAuthError(outcome.error);
-    else setCelebrating(true);
     void loadStatus();
   }, [loadStatus]);
 
@@ -62,10 +68,7 @@ export function App() {
   useEffect(() => {
     return subscribe({
       dashboard: (payload) => setData((prev) => ({ ...(payload as DashboardData), prefs: prev?.prefs ?? emptyPrefs })),
-      auth: () => {
-        setCelebrating(true);
-        void loadStatus();
-      },
+      auth: () => void loadStatus(),
       'auth-error': (payload) => setAuthError((payload as { message: string }).message),
       error: (payload) => setError((payload as { message: string }).message),
     });
