@@ -54,11 +54,13 @@ export async function saveToken(value: StoredToken): Promise<void> {
   if (kr) {
     new kr.Entry(SERVICE, value.login).setPassword(json);
     // Remember which account to read back, without storing the secret itself.
-    await mkdir(FALLBACK_DIR, { recursive: true });
+    await mkdir(FALLBACK_DIR, { recursive: true, mode: 0o700 });
+    await chmod(FALLBACK_DIR, 0o700).catch(() => {});
     await writeFile(join(FALLBACK_DIR, 'account'), value.login, 'utf8');
     return;
   }
-  await mkdir(FALLBACK_DIR, { recursive: true });
+  await mkdir(FALLBACK_DIR, { recursive: true, mode: 0o700 });
+    await chmod(FALLBACK_DIR, 0o700).catch(() => {});
   await writeFile(FALLBACK_FILE, json, { encoding: 'utf8', mode: 0o600 });
   await chmod(FALLBACK_FILE, 0o600);
 }

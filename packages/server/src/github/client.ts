@@ -92,7 +92,10 @@ export class GitHubClient {
    * change between polls and never return 304.
    */
   async rest<T>(path: string, opts: { cache?: boolean; accept?: string } = {}): Promise<T> {
-    const url = path.startsWith('http') ? path : `${API}${path}`;
+    // Always relative to api.github.com. Accepting an absolute URL here would mean a future
+    // caller that forwards a URL out of a GitHub response body ships the repo-scoped token to
+    // whatever host that URL names.
+    const url = `${API}${path}`;
     const cached = opts.cache ? this.#etags.get(url) : undefined;
     const headers = this.#headers(opts.accept ? { Accept: opts.accept } : {});
     if (cached) headers['If-None-Match'] = cached.etag;

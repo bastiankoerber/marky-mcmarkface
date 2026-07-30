@@ -490,3 +490,49 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
 
 /* Draft card: the note explaining a file-level fallback. */
 .card .note { margin: 0 0 6px; }
+
+/* the one loading state ------------------------------------------------------ */
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+  opacity: 0;
+}
+.loading.shown { opacity: 1; transition: opacity 260ms ease-out; }
+.loading-page { min-height: 60vh; padding: 48px 24px; }
+.loading-inline { padding: 48px 24px; }
+
+.loading-line { margin: 0; font-size: 14px; color: var(--fg); }
+.loading-slow { margin: 0; font-size: 12px; color: var(--muted); max-width: 34ch; animation: settle 240ms ease-out; }
+
+.loading-mark { color: var(--accent); overflow: visible; }
+.loading-stroke {
+  stroke: currentColor;
+  stroke-dasharray: 190;
+  stroke-dashoffset: 190;
+  animation: pilcrow-write 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+
+/* Writes the glyph, holds it a beat, then fades out and starts again. */
+@keyframes pilcrow-write {
+  0%   { stroke-dashoffset: 190; opacity: 0.25; }
+  45%  { stroke-dashoffset: 0;   opacity: 1; }
+  70%  { stroke-dashoffset: 0;   opacity: 1; }
+  100% { stroke-dashoffset: 0;   opacity: 0.15; }
+}
+
+/* Motion here is decoration. The drawn mark alone carries it. */
+@media (prefers-reduced-motion: reduce) {
+  .loading.shown { transition: none; }
+  .loading-stroke { animation: none; stroke-dashoffset: 0; opacity: 0.8; }
+  .loading-slow { animation: none; }
+}
+
+/* Outdated threads: a list, not positions — they have no line in this version of the file. */
+.rail-archive { position: relative; z-index: 1; padding: 10px 10px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.rail-archive .muted.tiny { margin: 4px 0 8px; }
+.card.archived { position: static; margin-bottom: 8px; opacity: 0.75; cursor: default; }

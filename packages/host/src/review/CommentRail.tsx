@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { PrDetail } from '../api.js';
 
 export interface RailPending {
@@ -42,6 +42,7 @@ export function CommentRail({
   draft,
   pending,
   threads,
+  archived = [],
   onRemove,
   onReply,
   onResolve,
@@ -50,20 +51,28 @@ export function CommentRail({
   draft: RailDraft | null;
   pending: RailPending[];
   threads: RailThread[];
+  /** Threads GitHub gives no current line for — outdated against this version of the file. */
+  archived?: PrDetail['threads'];
   onRemove: (key: string) => void;
   onReply: (commentId: number, body: string) => Promise<void>;
   onResolve: (threadId: string, resolved: boolean) => Promise<void>;
   onFocus: (line: number) => void;
 }) {
-  const laidOut = layout([
-    // The draft sorts in by position like everything else, so it appears beside the passage
-    // being commented on rather than floating somewhere else on screen.
-    ...(draft ? [{ kind: 'draft' as const, top: draft.top, data: draft }] : []),
-    ...pending.map((p) => ({ kind: 'pending' as const, top: p.top, data: p })),
-    ...threads.map((t) => ({ kind: 'thread' as const, top: t.top, data: t })),
-  ]);
+  const entries = useMemo(
+    () =>
+      [
+        // The draft sorts in by position like everything else, so it appears beside the passage
+        // being commented on rather than floating somewhere else on screen.
+        ...(draft ? [{ key: 'draft', kind: 'draft' as const, top: draft.top, data: draft }] : []),
+        ...pending.map((p) => ({ key: p.key, kind: 'pending' as const, top: p.top, data: p })),
+        ...threads.map((t) => ({ key: t.thread.id, kind: 'thread' as const, top: t.top, data: t })),
+      ].sort((a, b) => a.top - b.top),
+    [draft, pending, threads],
+  );
 
-  if (laidOut.length === 0) {
+  const { refFor, tops } = useStackLayout(entries);
+
+  if (entries.length === 0 && archived.length === 0) {
     return (
       <div className="rail">
         <p className="muted small rail-empty">
@@ -75,31 +84,87 @@ export function CommentRail({
 
   return (
     <div className="rail">
-      {laidOut.map((item) =>
-        item.kind === 'draft' ? (
-          <DraftCard key="draft" card={item.data} top={item.top} />
-        ) : item.kind === 'pending' ? (
-          <PendingCard key={item.data.key} card={item.data} top={item.top} onRemove={onRemove} onFocus={onFocus} />
-        ) : (
+      <ArchivedThreads threads={archived} />
+      {entries.map((item) => {
+        // Fall back to the anchor position on the very first paint, before measurement.
+        const top = tops[item.key] ?? item.top;
+        if (item.kind === 'draft') {
+          return <DraftCard key={item.key} innerRef={refFor(item.key)} card={item.data} top={top} />;
+        }
+        if (item.kind === 'pending') {
+          return (
+            <PendingCard
+              key={item.key}
+              innerRef={refFor(item.key)}
+              card={item.data}
+              top={top}
+              onRemove={onRemove}
+              onFocus={onFocus}
+            />
+          );
+        }
+        return (
           <ThreadCard
-            key={item.data.thread.id}
+            key={item.key}
+            innerRef={refFor(item.key)}
             card={item.data}
-            top={item.top}
+            top={top}
             onReply={onReply}
             onResolve={onResolve}
             onFocus={onFocus}
           />
-        ),
-      )}
+        );
+      })}
     </div>
   );
 }
 
-function DraftCard({ card, top }: { card: RailDraft; top: number }) {
+/**
+ * Threads with no line in this version of the file.
+ *
+ * GitHub reports `line: null` once a comment is outdated, leaving only an `originalLine` that
+ * indexes the file as it was when the comment was written. Placing a card by that number puts
+ * it beside whatever text occupies that row *now* — which is how a comment ends up pointing at
+ * an unrelated paragraph. They belong in a list, not on a line, and they stay collapsed because
+ * they are history rather than something waiting on the reader.
+ */
+function ArchivedThreads({ threads }: { threads: PrDetail['threads'] }) {
+  const [open, setOpen] = useState(false);
+  if (threads.length === 0) return null;
+
+  return (
+    <section className="rail-archive">
+      <button className="btn link tiny" onClick={() => setOpen(!open)}>
+        {open ? 'Hide' : 'Show'} {threads.length} outdated comment{threads.length === 1 ? '' : 's'}
+      </button>
+      {open && (
+        <>
+          <p className="muted tiny">These were written against an earlier version of this file.</p>
+          {threads.map((t) => (
+            <article className="card archived" key={t.id}>
+              <header>
+                <strong>{t.comments[0]?.author}</strong>
+                {t.isResolved && <span className="tag">resolved</span>}
+                <a className="btn link tiny" href={t.comments[0]?.url} target="_blank" rel="noreferrer noopener">
+                  open
+                </a>
+              </header>
+              <p>{t.comments[0]?.body}</p>
+            </article>
+          ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+type CardRef = (el: HTMLElement | null) => void;
+
+function DraftCard({ card, top, innerRef }: { card: RailDraft; top: number; innerRef: CardRef }) {
   const where = card.startLine === card.line ? `line ${card.line}` : `lines ${card.startLine}–${card.line}`;
 
   return (
-    <article className="card draft" style={{ top }}>
+    <article ref={innerRef} className="card draft" style={{ top }}>
       <blockquote>{card.quote}</blockquote>
 
       {/*
@@ -139,31 +204,73 @@ function DraftCard({ card, top }: { card: RailDraft; top: number }) {
 }
 
 const CARD_GAP = 8;
-const MIN_HEIGHT = 84;
 
-function layout<T extends { top: number }>(items: T[]): T[] {
-  const sorted = [...items].sort((a, b) => a.top - b.top);
-  let cursor = 0;
-  return sorted.map((item) => {
-    const top = Math.max(item.top, cursor);
-    cursor = top + MIN_HEIGHT + CARD_GAP;
-    return { ...item, top };
-  });
+/**
+ * Stack cards without overlapping them.
+ *
+ * Each card wants to sit beside its own paragraph, but two comments on adjacent lines would
+ * draw on top of each other — so a card that collides with the one above is pushed down.
+ *
+ * The heights have to be **measured**. This previously assumed a flat 84px per card, which is
+ * roughly a collapsed one; an expanded thread with four replies and a reply box is several
+ * hundred, so everything below it was positioned inside it. Expanding a thread is exactly when
+ * a reader notices, which is why the ResizeObserver matters as much as the initial measurement.
+ */
+function useStackLayout(entries: Array<{ key: string; top: number }>) {
+  const nodes = useRef(new Map<string, HTMLElement>());
+  const [tops, setTops] = useState<Record<string, number>>({});
+
+  const measure = useCallback(() => {
+    let cursor = 0;
+    const next: Record<string, number> = {};
+    for (const entry of entries) {
+      const height = nodes.current.get(entry.key)?.offsetHeight ?? 0;
+      const top = Math.max(entry.top, cursor);
+      next[entry.key] = top;
+      cursor = top + height + CARD_GAP;
+    }
+    // Bail when nothing moved, or the ResizeObserver and this state would ping-pong forever.
+    setTops((prev) => {
+      const keys = Object.keys(next);
+      const unchanged = keys.length === Object.keys(prev).length && keys.every((k) => prev[k] === next[k]);
+      return unchanged ? prev : next;
+    });
+  }, [entries]);
+
+  useLayoutEffect(measure, [measure]);
+
+  useEffect(() => {
+    const observer = new ResizeObserver(measure);
+    for (const el of nodes.current.values()) observer.observe(el);
+    return () => observer.disconnect();
+  }, [measure]);
+
+  const refFor = useCallback(
+    (key: string) => (el: HTMLElement | null) => {
+      if (el) nodes.current.set(key, el);
+      else nodes.current.delete(key);
+    },
+    [],
+  );
+
+  return { refFor, tops };
 }
 
 function PendingCard({
   card,
   top,
+  innerRef,
   onRemove,
   onFocus,
 }: {
   card: RailPending;
   top: number;
+  innerRef: CardRef;
   onRemove: (key: string) => void;
   onFocus: (line: number) => void;
 }) {
   return (
-    <article className="card pending" style={{ top }} onClick={() => onFocus(card.startLine)}>
+    <article ref={innerRef} className="card pending" style={{ top }} onClick={() => onFocus(card.startLine)}>
       <header>
         <span className="tag">pending</span>
         <span className="muted small">
@@ -192,12 +299,14 @@ function PendingCard({
 function ThreadCard({
   card,
   top,
+  innerRef,
   onReply,
   onResolve,
   onFocus,
 }: {
   card: RailThread;
   top: number;
+  innerRef: CardRef;
   onReply: (commentId: number, body: string) => Promise<void>;
   onResolve: (threadId: string, resolved: boolean) => Promise<void>;
   onFocus: (line: number) => void;
@@ -211,6 +320,7 @@ function ThreadCard({
 
   return (
     <article
+      ref={innerRef}
       className={`card thread ${thread.isResolved ? 'resolved' : ''} ${thread.isOutdated ? 'outdated' : ''}`}
       style={{ top }}
       onClick={() => thread.line && onFocus(thread.line)}

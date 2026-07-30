@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, type AuthStatus, type DeviceStart } from '../api.js';
+import { Loading } from '../Loading.jsx';
 
 /**
  * First run.
@@ -345,7 +346,7 @@ function DeviceCode({ onCancel }: { onCancel: () => void }) {
 
         {failure && <p className="failure">{failure}</p>}
 
-        {!device && !failure && <p className="status-line">Requesting a code…</p>}
+        {!device && !failure && <Loading variant="inline" line="Asking GitHub for a code…" />}
 
         {device && (
           <>

