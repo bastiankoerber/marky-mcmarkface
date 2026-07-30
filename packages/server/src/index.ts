@@ -287,6 +287,11 @@ app.post('/api/pr/:owner/:repo/:number/review', async (c) => {
   if (input.event === 'COMMENT' && !input.body.trim() && input.comments.length === 0) {
     throw new HttpError(400, 'A comment review needs either a summary or at least one comment.');
   }
+  // File-level comments need the head SHA; fill it in here rather than trusting the client.
+  if (!input.commitId && input.comments.some((c) => c.subjectType === 'file')) {
+    const pr = await requireClient().rest<{ head: { sha: string } }>(`/repos/${owner}/${repo}/pulls/${number}`);
+    input.commitId = pr.head.sha;
+  }
   const result = await submitReview(requireClient(), owner, repo, number, input);
   void poller.refresh();
   return c.json(result);

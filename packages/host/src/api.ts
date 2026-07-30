@@ -77,8 +77,12 @@ export const api = {
     owner: string,
     repo: string,
     number: number,
-    input: { event: ReviewEvent; body: string; comments: PendingComment[] },
-  ) => post<{ id: number; url: string }>(`/api/pr/${owner}/${repo}/${number}/review`, input),
+    input: { event: ReviewEvent; body: string; comments: PendingComment[]; commitId?: string },
+  ) =>
+    post<{ id: number; url: string; fileCommentsPosted: number; fileCommentErrors: string[] }>(
+      `/api/pr/${owner}/${repo}/${number}/review`,
+      input,
+    ),
   reply: (owner: string, repo: string, number: number, commentId: number, body: string) =>
     post<unknown>(`/api/pr/${owner}/${repo}/${number}/reply`, { commentId, body }),
   resolveThread: (threadId: string, resolved: boolean) =>

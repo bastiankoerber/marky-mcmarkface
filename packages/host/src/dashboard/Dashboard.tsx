@@ -60,20 +60,29 @@ export function Dashboard({
           <button className={`chip ${filter === null ? 'on' : ''}`} onClick={() => setFilter(null)}>
             All repos
           </button>
+          {/*
+            Two hit targets, not one. The star used to be decoration on a chip whose only click
+            action was filtering — pinning was bound to right-click, which nobody discovers and
+            which became the *only* way to pin once the first-run card was dismissed.
+          */}
           {data.repos.map((r) => (
-            <button
-              key={r.nameWithOwner}
-              className={`chip ${filter === r.nameWithOwner ? 'on' : ''} ${pinned.has(r.nameWithOwner) ? 'pinned' : ''}`}
-              onClick={() => setFilter(filter === r.nameWithOwner ? null : r.nameWithOwner)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                void togglePin(r.nameWithOwner);
-              }}
-              title="Click to filter, right-click to pin"
-            >
-              {pinned.has(r.nameWithOwner) ? '★ ' : ''}
-              {r.nameWithOwner.split('/')[1]} <span className="chip-count">{r.count}</span>
-            </button>
+            <span key={r.nameWithOwner} className={`chip-group ${filter === r.nameWithOwner ? 'on' : ''}`}>
+              <button
+                className="chip-pin"
+                onClick={() => void togglePin(r.nameWithOwner)}
+                aria-pressed={pinned.has(r.nameWithOwner)}
+                title={pinned.has(r.nameWithOwner) ? `Unpin ${r.nameWithOwner}` : `Pin ${r.nameWithOwner}`}
+              >
+                {pinned.has(r.nameWithOwner) ? '★' : '☆'}
+              </button>
+              <button
+                className="chip chip-filter"
+                onClick={() => setFilter(filter === r.nameWithOwner ? null : r.nameWithOwner)}
+                title={`Show only ${r.nameWithOwner}`}
+              >
+                {r.nameWithOwner.split('/')[1]} <span className="chip-count">{r.count}</span>
+              </button>
+            </span>
           ))}
         </div>
         <label className="toggle">

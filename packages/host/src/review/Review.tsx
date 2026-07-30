@@ -127,6 +127,9 @@ export function Review({
         side: 'RIGHT',
         line: draft.line,
         ...(draft.startLine < draft.line ? { startLine: draft.startLine } : {}),
+        // An unchanged passage still gets recorded, just attached to the file rather than a
+        // line. The quote in the body is what tells the author which passage was meant.
+        ...(draft.commentable ? {} : { subjectType: 'file' as const }),
         body: `> ${draft.quote.replace(/\n/g, '\n> ')}\n\n${draftBody.trim()}`,
       },
     ]);
@@ -143,12 +146,20 @@ export function Review({
       const result = await api.submitReview(owner, repo, number, {
         event,
         body: summary,
+        commitId: pr.headSha,
         // Strip the local id; it is a UI concern and has no meaning to GitHub.
         comments: pending.map(({ id: _id, ...comment }) => comment),
       });
       setPending([]);
       setSummary('');
       setSubmitted(result.url);
+      // File-level comments are posted after the review, so they can fail on their own. Say
+      // which ones rather than reporting a clean success that was not one.
+      if (result.fileCommentErrors?.length) {
+        setSubmitError(
+          `The review was submitted, but ${result.fileCommentErrors.length} file comment(s) failed: ${result.fileCommentErrors.join('; ')}`,
+        );
+      }
       setPr(await api.pr(owner, repo, number));
     } catch (err) {
       setSubmitError((err as Error).message);
@@ -199,6 +210,7 @@ export function Review({
           body: c.body.replace(/^> .*\n\n/s, ''),
           quote: c.body.startsWith('>') ? (c.body.split('\n\n')[0] ?? '').replace(/^> /gm, '') : '',
           top: topFor(c.startLine ?? c.line),
+          fileLevel: c.subjectType === 'file',
         })),
       railThreads: (pr?.threads ?? [])
         .filter((t) => t.path === activePath)
