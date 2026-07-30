@@ -6,14 +6,26 @@ import type { Prefs } from '@pilcrow/server/src/prefs.js';
 export type { DashboardData, PrDetail, PendingComment, ReviewEvent, Prefs };
 
 /**
- * Every request carries `X-Pilcrow: 1`. The server rejects anything without it, which is what makes
- * a cross-origin page unable to drive this API — a form cannot set custom headers, and a
- * cross-origin fetch that tries earns a preflight the server fails.
+ * Every request carries this launch's `X-Pilcrow` key.
+ *
+ * The header is what makes a cross-origin page unable to drive this API — a form cannot set
+ * custom headers, and a cross-origin fetch that tries earns a preflight the server fails. The
+ * *value* being per-launch rather than a published constant is what stops a local one-liner
+ * doing the same thing.
+ *
+ * In production the server injects it into the served document. In development the Vite proxy
+ * attaches it, so the browser never needs it at all.
  */
+const SESSION_KEY = document.querySelector<HTMLMetaElement>('meta[name="pilcrow-key"]')?.content ?? '';
+
+function authHeaders(extra: HeadersInit = {}): HeadersInit {
+  return SESSION_KEY ? { 'X-Pilcrow': SESSION_KEY, ...extra } : extra;
+}
+
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     ...init,
-    headers: { 'X-Pilcrow': '1', 'Content-Type': 'application/json', ...(init.headers ?? {}) },
+    headers: { ...authHeaders({ 'Content-Type': 'application/json' }), ...(init.headers ?? {}) },
   });
   const text = await res.text();
   const body = text ? (JSON.parse(text) as unknown) : null;
@@ -89,23 +101,64 @@ export const api = {
     post<{ resolved: boolean }>('/api/thread/resolve', { threadId, resolved }),
 };
 
-/** Server-pushed updates. The server does the polling; this just listens. */
+/**
+ * Server-pushed updates. The server does the polling; this just listens.
+ *
+ * Deliberately `fetch` + a stream reader rather than `EventSource`. `EventSource` cannot set
+ * request headers, so it could never send the `X-Pilcrow` key and every connection was rejected
+ * — live updates had never actually worked. Exempting the path from the header check would have
+ * made this stream, which carries private repository names, PR titles and file paths, readable
+ * by anything that could reach it.
+ */
 export function subscribe(handlers: Record<string, (data: unknown) => void>): () => void {
-  const source = new EventSource('/api/events');
-  const bound: Array<[string, EventListener]> = [];
-  for (const [event, handler] of Object.entries(handlers)) {
-    const listener: EventListener = (e) => {
+  const controller = new AbortController();
+
+  void (async () => {
+    // Reconnect on drop, backing off, until the caller unsubscribes.
+    let delay = 1000;
+    while (!controller.signal.aborted) {
       try {
-        handler(JSON.parse((e as MessageEvent).data));
+        const res = await fetch('/api/events', {
+          headers: authHeaders({ Accept: 'text/event-stream' }),
+          signal: controller.signal,
+        });
+        if (!res.ok || !res.body) throw new Error(`stream failed (${res.status})`);
+        delay = 1000;
+
+        const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+        let buffer = '';
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += value;
+          // Frames are separated by a blank line; keep any partial tail for the next chunk.
+          const frames = buffer.split('\n\n');
+          buffer = frames.pop() ?? '';
+          for (const frame of frames) dispatch(frame, handlers);
+        }
       } catch {
-        /* ignore malformed frames rather than tearing down the stream */
+        if (controller.signal.aborted) return;
       }
-    };
-    source.addEventListener(event, listener);
-    bound.push([event, listener]);
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 30_000);
+    }
+  })();
+
+  return () => controller.abort();
+}
+
+function dispatch(frame: string, handlers: Record<string, (data: unknown) => void>): void {
+  let event = 'message';
+  const data: string[] = [];
+  for (const line of frame.split('\n')) {
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) data.push(line.slice(5).trim());
   }
-  return () => {
-    for (const [event, listener] of bound) source.removeEventListener(event, listener);
-    source.close();
-  };
+  const handler = handlers[event];
+  if (!handler || data.length === 0) return;
+  try {
+    handler(JSON.parse(data.join('\n')));
+  } catch {
+    /* ignore malformed frames rather than tearing down the stream */
+  }
 }

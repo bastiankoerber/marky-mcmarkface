@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, subscribe, type AuthStatus, type DashboardData, type Prefs } from './api.js';
+import { Loading } from './Loading.jsx';
 import { Connect } from './onboarding/Connect.jsx';
 import { Connected } from './onboarding/Connected.jsx';
 import { Dashboard } from './dashboard/Dashboard.jsx';
@@ -83,7 +84,7 @@ export function App() {
     setView(next);
   };
 
-  if (!status) return <Splash />;
+  if (!status) return <Loading line="Starting Pilcrow…" />;
 
   if (!status.connected) {
     return <Connect status={status} error={authError} onConnected={loadStatus} />;
@@ -137,21 +138,11 @@ export function App() {
           onRefresh={() => void api.refresh().then(loadDashboard)}
         />
       ) : (
-        <Splash line="Fetching your pull requests…" />
+        <Loading
+          line="Fetching your pull requests…"
+          slowLine="GitHub is taking longer than usual to answer."
+        />
       )}
-    </div>
-  );
-}
-
-function Splash({ line }: { line?: string }) {
-  return (
-    <div className="stage">
-      <div className="stage-inner">
-        <div className="mark breathing" aria-hidden="true">
-          ¶
-        </div>
-        {line && <p className="status-line">{line}</p>}
-      </div>
     </div>
   );
 }

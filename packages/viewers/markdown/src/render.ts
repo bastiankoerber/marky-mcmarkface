@@ -34,10 +34,21 @@ export interface RenderOptions {
   blocks?: DiffBlock[];
   /** Word-level changes in this document's coordinates. */
   inline?: InlineChange[];
+  /**
+   * Per-render random token appended to the position attribute name.
+   *
+   * Markdown may contain raw HTML, and `data-` attributes survive sanitisation — so without
+   * this a pull request author can write their own `data-pilcrow-pos` and steer where the
+   * reviewer's comment lands. Demonstrated: highlighting "This release only fixes typos."
+   * produced a comment quoting an entirely different sentence. A nonce they cannot predict
+   * makes forged stamps unreadable. Empty (tests, the spike) keeps the bare attribute name.
+   */
+  nonce?: string;
 }
 
 interface Ctx {
   source: string;
+  posAttr: string;
   blockKind: Map<number, string>;
   ins: Array<{ start: number; end: number }>;
   del: Array<{ at: number; text: string }>;
@@ -56,7 +67,7 @@ function attrs(ctx: Ctx, span: Span | null, exact = false): string {
   if (!span) return '';
   const change = ctx.depth === 1 ? ctx.blockKind.get(span.start) : undefined;
   return (
-    ` data-pilcrow-pos="${span.start}:${span.end}"` +
+    ` ${ctx.posAttr}="${span.start}:${span.end}"` +
     (exact ? ' data-pilcrow-x=""' : '') +
     (change ? ` data-pilcrow-change="${change}"` : '')
   );
@@ -115,7 +126,7 @@ function emitLeaf(ctx: Ctx, tag: string, span: Span, value: string, extra: strin
     if (to <= from) continue;
     const text = value.slice(from - span.start, to - span.start);
     const inserted = ctx.ins.some((r) => from >= r.start && to <= r.end);
-    const stamped = `<${tag}${extra} data-pilcrow-pos="${from}:${to}" data-pilcrow-x="">${esc(text)}</${tag}>`;
+    const stamped = `<${tag}${extra} ${ctx.posAttr}="${from}:${to}" data-pilcrow-x="">${esc(text)}</${tag}>`;
     out += inserted ? `<ins data-pilcrow-ins="">${stamped}</ins>` : stamped;
   }
 
@@ -142,7 +153,7 @@ function leaf(ctx: Ctx, node: Nodes, value: string, tag: string, extra = ''): st
  * offset; only markup has to be skipped. Anything that cannot be confidently classified is left
  * unwrapped, degrading that run to the enclosing block rather than risking a wrong offset.
  */
-function stampRawHtml(value: string, base: number): string {
+function stampRawHtml(value: string, base: number, posAttr: string): string {
   let out = '';
   let i = 0;
 
@@ -152,7 +163,7 @@ function stampRawHtml(value: string, base: number): string {
       out += text;
       return;
     }
-    out += `<span data-pilcrow-pos="${base + from}:${base + to}" data-pilcrow-x="">${text}</span>`;
+    out += `<span ${posAttr}="${base + from}:${base + to}" data-pilcrow-x="">${text}</span>`;
   };
 
   while (i < value.length) {
@@ -246,7 +257,7 @@ function renderNode(ctx: Ctx, node: Nodes): string {
       // so a comment on line 3 of a snippet anchors to line 3 and not to the fence.
       const span = spanOf(node);
       const resolved = exactSpan(ctx.source, span, node.value);
-      const lang = node.lang ? ` class="language-${esc(node.lang)}"` : '';
+      const lang = node.lang ? ` data-lang="${esc(node.lang)}"` : '';
       const inner = resolved?.exact
         ? emitLeaf(ctx, 'code', resolved.span, node.value, lang)
         : `<code${lang}${attrs(ctx, resolved?.span ?? null)}>${esc(node.value)}</code>`;
@@ -278,7 +289,7 @@ function renderNode(ctx: Ctx, node: Nodes): string {
       return wrap(ctx, node, 'section', () => children(ctx, node), ' data-pilcrow-footnote=""');
     case 'html': {
       const span = spanOf(node);
-      const inner = span ? stampRawHtml(node.value, span.start) : node.value;
+      const inner = span ? stampRawHtml(node.value, span.start, ctx.posAttr) : node.value;
       return `<span${attrs(ctx, span)} data-pilcrow-raw="">${inner}</span>`;
     }
     case 'definition':
@@ -301,6 +312,7 @@ export function renderToHtml(source: string, tree: Nodes, options: RenderOptions
 
   const ctx: Ctx = {
     source,
+    posAttr: options.nonce ? `data-pilcrow-pos-${options.nonce}` : 'data-pilcrow-pos',
     blockKind,
     ins: (options.inline ?? []).filter((c): c is Extract<InlineChange, { kind: 'ins' }> => c.kind === 'ins'),
     del: (options.inline ?? []).filter((c): c is Extract<InlineChange, { kind: 'del' }> => c.kind === 'del'),

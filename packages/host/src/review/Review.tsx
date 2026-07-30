@@ -2,6 +2,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { offsetToLine, quoteFor, type AnchoringImpl, type SourceRange, type ViewerHost } from '@pilcrow/viewer-api';
 import { api, type PendingComment, type PrDetail, type ReviewEvent } from '../api.js';
 import { createRegistry } from '../viewers/index.js';
+import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
 import { CommentRail, type RailPending, type RailThread } from './CommentRail.jsx';
 
@@ -169,7 +170,7 @@ export function Review({
   };
 
   // Place rail cards next to the prose they refer to, by asking the viewer to anchor each one.
-  const { railPending, railThreads, topForLine } = useMemo(() => {
+  const { railPending, railThreads, archivedThreads, topForLine } = useMemo(() => {
     void railTick;
     const impl = anchoringRef.current;
     const container = impl?.contentContainer();
@@ -212,9 +213,19 @@ export function Review({
           top: topFor(c.startLine ?? c.line),
           fileLevel: c.subjectType === 'file',
         })),
+      /*
+       * Only threads GitHub still gives a `line` for have a place in this document.
+       *
+       * An outdated thread reports `line: null` and only an `originalLine`, which indexes the
+       * version of the file it was written against — not the one on screen. Positioning a card
+       * by that number puts it beside whatever text happens to occupy that row now, which is
+       * how a comment ends up pointing at an unrelated paragraph. They go to the archive
+       * instead, where they are honest about having no anchor here.
+       */
       railThreads: (pr?.threads ?? [])
-        .filter((t) => t.path === activePath)
-        .map<RailThread>((t) => ({ thread: t, top: topFor(t.line ?? t.originalLine ?? 1) })),
+        .filter((t) => t.path === activePath && t.line !== null)
+        .map<RailThread>((t) => ({ thread: t, top: topFor(t.line!) })),
+      archivedThreads: (pr?.threads ?? []).filter((t) => t.path === activePath && t.line === null),
     };
   }, [pending, pr?.threads, activePath, headSource, railTick]);
 
@@ -238,7 +249,14 @@ export function Review({
       </div>
     );
   }
-  if (!pr) return <div className="review loading">Loading pull request…</div>;
+  if (!pr) {
+    return (
+      <Loading
+        line={`Opening ${owner}/${repo} #${number}…`}
+        slowLine="Fetching every changed file and its previous version."
+      />
+    );
+  }
 
   const resolved = file ? registry.resolve(file.path) : undefined;
   const Viewer = resolved?.plugin.component as React.ComponentType<Record<string, unknown>> | undefined;
@@ -315,7 +333,7 @@ export function Review({
             ) : file.skipped ? (
               <p className="muted">{file.skipped}</p>
             ) : Active ? (
-              <Suspense fallback={<p className="muted">Loading viewer…</p>}>
+              <Suspense fallback={<Loading variant="inline" line="Preparing the viewer…" />}>
                 <Active
                   key={`${file.path}:${mode}`}
                   file={{ path: file.path, base: file.base, head: file.head, hunks: file.patch.hunks }}
@@ -332,6 +350,7 @@ export function Review({
 
           <aside className="rail-pane">
             <CommentRail
+              archived={archivedThreads}
               draft={
                 draft
                   ? {

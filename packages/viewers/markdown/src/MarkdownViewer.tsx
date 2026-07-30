@@ -24,19 +24,34 @@ export interface MarkdownViewerProps extends ViewerProps {
 export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }: MarkdownViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const html = useMemo(() => {
+  /*
+   * A fresh nonce per render, namespacing the position attribute.
+   *
+   * Markdown may contain raw HTML and `data-` attributes survive sanitisation, so without this
+   * a pull request author could ship their own `data-pilcrow-pos` and steer where a reviewer's
+   * comment lands — highlighting one sentence while the posted comment quotes another. The
+   * nonce is generated here, outside anything the document can influence, and is carried on the
+   * root element rather than inside the sanitised HTML.
+   */
+  const { html, nonce } = useMemo(() => {
+    const token = Math.random().toString(36).slice(2, 10);
     const head = normaliseSource(file.head ?? '');
     const headTree = parseMarkdown(head);
 
     // 'final' is the deliberate no-markup read. Everything else gets the diff — including a
     // newly added file, where `base` is null and every block is new. Skipping the diff there
     // would render an added file identically to an unchanged one.
-    if (mode === 'final') return sanitize(renderToHtml(head, headTree, {}));
+    if (mode === 'final') {
+      return { html: sanitize(renderToHtml(head, headTree, { nonce: token })), nonce: token };
+    }
 
     const base = file.base === null ? null : normaliseSource(file.base);
     const baseTree = base === null ? null : parseMarkdown(base);
     const diff = diffMarkdown(base, baseTree, head, headTree);
-    return sanitize(renderToHtml(head, headTree, { blocks: diff.blocks, inline: diff.inline }));
+    return {
+      html: sanitize(renderToHtml(head, headTree, { blocks: diff.blocks, inline: diff.inline, nonce: token })),
+      nonce: token,
+    };
   }, [file.head, file.base, mode]);
 
   // Register the anchoring implementation. The host owns everything downstream of this — the
@@ -55,11 +70,14 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
       scrollTo: (range) => {
         const found = anchorRange(root, range);
         if (!found) return;
-        const rect = found.getBoundingClientRect();
         const container = root.closest('[data-pilcrow-scroll]') ?? root.parentElement;
-        if (container) {
-          container.scrollTop += rect.top - container.getBoundingClientRect().top - 120;
-        }
+        if (!container) return;
+        // Centre the passage and animate. Jumping it to a fixed 120px from the top read as an
+        // abrupt cut, and left the reader without the context above the line they asked for.
+        const rect = found.getBoundingClientRect();
+        const box = container.getBoundingClientRect();
+        const target = container.scrollTop + (rect.top - box.top) - box.height / 2 + rect.height / 2;
+        container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
       },
       contentContainer: () => root,
       onLayoutChange: (cb) => {
@@ -111,6 +129,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
       ref={containerRef}
       className="md-body"
       data-pilcrow-root=""
+      data-pilcrow-nonce={nonce}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
@@ -118,10 +137,24 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
 
 function sanitize(html: string): string {
   return DOMPurify.sanitize(html, {
-    // ALLOW_DATA_ATTR defaults true, which is what preserves data-pilcrow-pos / -x / -change.
+    // ALLOW_DATA_ATTR defaults true, which is what preserves data-pilcrow-pos-<nonce> / -x.
+    // A pull request author can therefore write those attributes too — which is why the
+    // position attribute is namespaced with a per-render nonce they cannot predict.
     ADD_TAGS: ['ins', 'del'],
+    // `target` is added back deliberately: DOMPurify strips it by default, which made links in
+    // a rendered PR navigate the app tab away. It is only safe alongside the `rel` the renderer
+    // always emits.
+    ADD_ATTR: ['target'],
     FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
-    FORBID_ATTR: ['srcdoc', 'formaction', 'ping'],
+    /*
+     * `style` and `class` are the review-integrity ones, not XSS.
+     *
+     * `style` lets a pull request hide its own content from the rendered view the reviewer
+     * approves from (`display:none`, `font-size:0`), or paint over the entire UI with
+     * `position:fixed;inset:0;z-index:99999` — including the Approve and Request changes
+     * buttons. `class` lets raw HTML borrow Pilcrow's own chrome to look like the app talking.
+     */
+    FORBID_ATTR: ['style', 'class', 'srcdoc', 'formaction', 'ping'],
   });
 }
 

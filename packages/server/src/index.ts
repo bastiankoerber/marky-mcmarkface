@@ -3,12 +3,19 @@ import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { streamSSE } from 'hono/streaming';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { GitHubClient } from './github/client.js';
 import { fetchPr } from './github/pr.js';
-import { submitReview, replyToComment, setThreadResolved, type SubmitReviewInput } from './github/review.js';
+import {
+  submitReview,
+  replyToComment,
+  setThreadResolved,
+  ReviewSubmitError,
+  type SubmitReviewInput,
+} from './github/review.js';
 import { loadToken, saveToken, clearToken, type StoredToken } from './auth/keychain.js';
 import { ghStatus, ghToken } from './auth/gh-cli.js';
 import { requestDeviceCode, pollForToken, revokeGrant, clientId, DeviceFlowError, type DeviceCode } from './auth/device-flow.js';
@@ -20,9 +27,10 @@ import {
   credentials,
   saveCredentials,
   registrationUrl,
+  describeOAuthError,
   OAuthError,
 } from './auth/oauth.js';
-import { localOnly } from './middleware/security.js';
+import { localOnly, sessionKey, publishSessionKey } from './middleware/security.js';
 import { readPrefs, writePrefs } from './prefs.js';
 import { Poller } from './poll.js';
 
@@ -86,10 +94,31 @@ class HttpError extends Error {
 const app = new Hono();
 app.use('*', localOnly([`http://localhost:${PORT}`, `http://127.0.0.1:${PORT}`, VITE_ORIGIN]));
 
+/**
+ * Read a JSON body without ever echoing it back.
+ *
+ * `JSON.parse` embeds the first ~10 characters of its input in the SyntaxError message, and the
+ * error handler used to relay `err.message` verbatim — so a malformed POST to `/api/auth/pat`
+ * replied with `Unexpected token 'g', "github_pat"... is not valid JSON`, handing back a slice
+ * of the credential that was just pasted.
+ */
+async function readJson<T>(c: { req: { json: () => Promise<unknown> } }): Promise<T> {
+  try {
+    return (await c.req.json()) as T;
+  } catch {
+    throw new HttpError(400, 'Malformed request body.');
+  }
+}
+
 app.onError((err, c) => {
+  // Only messages we authored are relayed. Anything else could carry request or upstream
+  // content — including a credential — so it is logged shape-only and replaced.
   if (err instanceof HttpError) return c.json({ error: err.message }, err.status as 400);
-  const status = (err as { status?: number }).status;
-  return c.json({ error: err.message }, (typeof status === 'number' ? status : 500) as 500);
+  if (err instanceof ReviewSubmitError || err instanceof OAuthError || err instanceof DeviceFlowError) {
+    return c.json({ error: err.message }, 400);
+  }
+  console.error(`[pilcrow] ${c.req.method} ${c.req.path} failed: ${(err as Error).name}`);
+  return c.json({ error: 'Something went wrong handling that request.' }, 500);
 });
 
 // ── auth ───────────────────────────────────────────────────────────────────────
@@ -120,7 +149,7 @@ app.get('/api/auth/status', async (c) =>
  * it, so the very next click is the ordinary one-click sign-in. No file editing, no restart.
  */
 app.post('/api/auth/oauth/configure', async (c) => {
-  const { clientId: id, clientSecret } = await c.req.json<{ clientId?: string; clientSecret?: string }>();
+  const { clientId: id, clientSecret } = await readJson<{ clientId?: string; clientSecret?: string }>(c);
   try {
     await saveCredentials(id ?? '', clientSecret ?? '');
   } catch (err) {
@@ -145,16 +174,27 @@ app.get('/gh/callback', async (c) => {
   const back = (params: Record<string, string>) =>
     c.redirect(`${APP_ORIGIN()}/#/connected?${new URLSearchParams(params)}`);
 
+  /*
+   * Never put a caller-supplied string on the sign-in screen.
+   *
+   * This endpoint takes no authentication — it cannot, because it is a top-level navigation
+   * back from GitHub. So anything reflected from the query string is attacker-controlled text
+   * rendered by the real app, at the real localhost origin, on the one screen that has a
+   * paste-your-token box on it. That is a credential-phishing primitive, and it was live:
+   * `?error_description=Your+session+expired.+Paste+a+personal+access+token+to+reconnect.`
+   * came straight back out.
+   *
+   * GitHub's `error` codes are a known, closed set, so map them and drop the rest.
+   */
   const error = c.req.query('error');
-  if (error) {
-    clearFlow();
-    return back({ error: c.req.query('error_description') ?? error });
-  }
+  if (error) return back({ error: describeOAuthError(error) });
 
   const code = c.req.query('code');
   const state = c.req.query('state');
   if (!code || !state) return back({ error: 'GitHub did not return an authorisation code.' });
 
+  // Only consume the pending flow once the state matches. Clearing it first meant any page
+  // could kill an in-flight sign-in with <img src=".../gh/callback?error=x">.
   const flow = takeFlow(state);
   if (!flow) {
     return back({ error: 'That sign-in attempt expired or did not match. Please try again.' });
@@ -185,7 +225,7 @@ function publicIdentity(value: StoredToken) {
 app.post('/api/auth/gh', async (c) => c.json(publicIdentity(await adopt(await ghToken(), 'gh-cli'))));
 
 app.post('/api/auth/pat', async (c) => {
-  const { token } = await c.req.json<{ token?: string }>();
+  const { token } = await readJson<{ token?: string }>(c);
   if (!token?.trim()) throw new HttpError(400, 'No token supplied.');
   return c.json(publicIdentity(await adopt(token.trim(), 'pat')));
 });
@@ -258,7 +298,7 @@ app.post('/api/dashboard/refresh', async (c) => {
 });
 
 app.post('/api/focus', async (c) => {
-  const { focused } = await c.req.json<{ focused: boolean }>();
+  const { focused } = await readJson<{ focused: boolean }>(c);
   poller.setFocus(Boolean(focused));
   return c.json({ ok: true });
 });
@@ -266,7 +306,7 @@ app.post('/api/focus', async (c) => {
 // ── prefs ──────────────────────────────────────────────────────────────────────
 
 app.get('/api/prefs', async (c) => c.json(await readPrefs()));
-app.post('/api/prefs', async (c) => c.json(await writePrefs(await c.req.json())));
+app.post('/api/prefs', async (c) => c.json(await writePrefs(await readJson<Record<string, unknown>>(c))));
 
 // ── pull requests ──────────────────────────────────────────────────────────────
 
@@ -280,7 +320,7 @@ app.get('/api/pr/:owner/:repo/:number', async (c) => {
 app.post('/api/pr/:owner/:repo/:number/review', async (c) => {
   const { owner, repo } = c.req.param();
   const number = Number(c.req.param('number'));
-  const input = await c.req.json<SubmitReviewInput>();
+  const input = await readJson<SubmitReviewInput>(c);
   if (!['COMMENT', 'APPROVE', 'REQUEST_CHANGES'].includes(input.event)) {
     throw new HttpError(400, 'Unknown review event.');
   }
@@ -300,13 +340,13 @@ app.post('/api/pr/:owner/:repo/:number/review', async (c) => {
 app.post('/api/pr/:owner/:repo/:number/reply', async (c) => {
   const { owner, repo } = c.req.param();
   const number = Number(c.req.param('number'));
-  const { commentId, body } = await c.req.json<{ commentId: number; body: string }>();
+  const { commentId, body } = await readJson<{ commentId: number; body: string }>(c);
   if (!commentId || !body?.trim()) throw new HttpError(400, 'Reply needs a comment id and a body.');
   return c.json(await replyToComment(requireClient(), owner, repo, number, commentId, body));
 });
 
 app.post('/api/thread/resolve', async (c) => {
-  const { threadId, resolved } = await c.req.json<{ threadId: string; resolved: boolean }>();
+  const { threadId, resolved } = await readJson<{ threadId: string; resolved: boolean }>(c);
   if (!threadId) throw new HttpError(400, 'Missing thread id.');
   return c.json({ resolved: await setThreadResolved(requireClient(), threadId, Boolean(resolved)) });
 });
@@ -335,10 +375,23 @@ app.get('/api/events', (c) =>
 // ── static (production build) ──────────────────────────────────────────────────
 
 if (hasBuiltUi) {
+  // Hand the UI this launch's key by injecting it into the document it is served from. That
+  // keeps the key out of any endpoint an unauthenticated caller could ask for it from.
+  const indexHtml = join(dist, 'index.html');
+  const serveIndex = async () => {
+    const html = await readFile(indexHtml, 'utf8');
+    return new Response(
+      html.replace('</head>', `<meta name="pilcrow-key" content="${sessionKey()}"></head>`),
+      { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+    );
+  };
+  app.get('/', () => serveIndex());
+  app.use('/assets/*', serveStatic({ root: dist }));
   app.use('/*', serveStatic({ root: dist }));
-  app.get('*', serveStatic({ path: join(dist, 'index.html') }));
+  app.get('*', () => serveIndex());
 }
 
+publishSessionKey();
 await restore();
 
 serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {

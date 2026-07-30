@@ -1,6 +1,6 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -118,11 +118,17 @@ export async function saveCredentials(clientId: string, clientSecret: string): P
   const trimmedSecret = clientSecret.trim();
   if (!trimmedId) throw new Error('A client ID is required.');
 
-  await mkdir(dirname(CONFIG_FILE), { recursive: true });
+  // `mode` on mkdir applies only when the directory is created, so chmod unconditionally —
+  // an existing ~/.pilcrow from an earlier version is world-readable and holds secrets.
+  await mkdir(dirname(CONFIG_FILE), { recursive: true, mode: 0o700 });
+  await chmod(dirname(CONFIG_FILE), 0o700);
   await writeFile(CONFIG_FILE, JSON.stringify({ clientId: trimmedId, clientSecret: trimmedSecret }, null, 2), {
     encoding: 'utf8',
     mode: 0o600,
   });
+  // `mode` on writeFile only applies when the file is created. An existing file — from an older
+  // version, a restored backup, a `cp` — would keep whatever mode it had, holding a secret.
+  await chmod(CONFIG_FILE, 0o600);
   fileCreds = { clientId: trimmedId, clientSecret: trimmedSecret };
 }
 
@@ -185,9 +191,14 @@ export function beginFlow(redirectUri: string): { url: string; flow: PendingFlow
 export function takeFlow(state: string): PendingFlow | null {
   const flow = pending;
   if (!flow) return null;
-  pending = null;
-  if (Date.now() - flow.createdAt > FLOW_TTL_MS) return null;
+  // Validate *before* consuming. Clearing first let any page abort someone's sign-in simply by
+  // causing a request to the callback with a wrong or absent state.
+  if (Date.now() - flow.createdAt > FLOW_TTL_MS) {
+    pending = null;
+    return null;
+  }
   if (!statesMatch(flow.state, state)) return null;
+  pending = null;
   return flow;
 }
 
@@ -210,7 +221,19 @@ const FRIENDLY: Record<string, string> = {
   redirect_uri_mismatch:
     'GitHub rejected the redirect address. The OAuth app’s callback URL must be exactly http://127.0.0.1/callback, with no port.',
   access_denied: 'You declined the authorisation on GitHub.',
+  application_suspended: 'This OAuth app has been suspended on GitHub.',
 };
+
+/**
+ * Turn an OAuth error code into a message that is safe to display.
+ *
+ * Deliberately a lookup with a fixed fallback, never a passthrough: this text can be reached by
+ * an unauthenticated GET on the callback, and it lands on the screen that offers to accept a
+ * pasted token. An attacker must not be able to choose the words next to that field.
+ */
+export function describeOAuthError(code: string): string {
+  return FRIENDLY[code] ?? 'GitHub could not complete the sign-in. Please try again.';
+}
 
 export async function exchangeCode(flow: PendingFlow, code: string): Promise<string> {
   const creds = credentials();

@@ -17,8 +17,20 @@ interface Stamp {
   exact: boolean;
 }
 
-function readStamp(el: Element): Stamp | null {
-  const raw = el.getAttribute('data-pilcrow-pos');
+/**
+ * The position attribute for this render.
+ *
+ * The nonce lives on the host-rendered root element, outside anything DOMPurify touches, so a
+ * pull request cannot set or read it. Falling back to the bare name keeps tests and the
+ * anchoring spike working, which render without a nonce.
+ */
+function posAttrFor(root: Element): string {
+  const nonce = root.getAttribute('data-pilcrow-nonce');
+  return nonce ? `data-pilcrow-pos-${nonce}` : 'data-pilcrow-pos';
+}
+
+function readStamp(el: Element, posAttr: string): Stamp | null {
+  const raw = el.getAttribute(posAttr);
   if (!raw) return null;
   const sep = raw.indexOf(':');
   if (sep === -1) return null;
@@ -29,10 +41,11 @@ function readStamp(el: Element): Stamp | null {
 }
 
 function closestStamp(node: Node, root: Element): Stamp | null {
+  const posAttr = posAttrFor(root);
   let el: Element | null =
     node.nodeType === 1 ? (node as Element) : (node.parentElement as Element | null);
   while (el) {
-    const stamp = readStamp(el);
+    const stamp = readStamp(el, posAttr);
     if (stamp) return stamp;
     if (el === root) break;
     el = el.parentElement;
@@ -149,11 +162,12 @@ export function describeRange(root: HTMLElement, range: Range, side: Side = 'RIG
 }
 
 function allStamps(root: Element): Stamp[] {
+  const posAttr = posAttrFor(root);
   const out: Stamp[] = [];
-  const self = readStamp(root);
+  const self = readStamp(root, posAttr);
   if (self) out.push(self);
-  for (const el of Array.from(root.querySelectorAll('[data-pilcrow-pos]'))) {
-    const stamp = readStamp(el);
+  for (const el of Array.from(root.querySelectorAll(`[${posAttr}]`))) {
+    const stamp = readStamp(el, posAttr);
     if (stamp) out.push(stamp);
   }
   return out;
