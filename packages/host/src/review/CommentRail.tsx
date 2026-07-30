@@ -16,6 +16,19 @@ export interface RailThread {
   top: number;
 }
 
+/** The comment being written. Lives in the rail beside its passage, like Google Docs. */
+export interface RailDraft {
+  quote: string;
+  startLine: number;
+  line: number;
+  commentable: boolean;
+  body: string;
+  top: number;
+  onChange: (body: string) => void;
+  onSubmit: () => void;
+  onCancel: () => void;
+}
+
 /**
  * Comment cards pinned beside the prose they refer to.
  *
@@ -24,6 +37,7 @@ export interface RailThread {
  * the same compromise Google Docs makes.
  */
 export function CommentRail({
+  draft,
   pending,
   threads,
   onRemove,
@@ -31,6 +45,7 @@ export function CommentRail({
   onResolve,
   onFocus,
 }: {
+  draft: RailDraft | null;
   pending: RailPending[];
   threads: RailThread[];
   onRemove: (key: string) => void;
@@ -39,6 +54,9 @@ export function CommentRail({
   onFocus: (line: number) => void;
 }) {
   const laidOut = layout([
+    // The draft sorts in by position like everything else, so it appears beside the passage
+    // being commented on rather than floating somewhere else on screen.
+    ...(draft ? [{ kind: 'draft' as const, top: draft.top, data: draft }] : []),
     ...pending.map((p) => ({ kind: 'pending' as const, top: p.top, data: p })),
     ...threads.map((t) => ({ kind: 'thread' as const, top: t.top, data: t })),
   ]);
@@ -56,7 +74,9 @@ export function CommentRail({
   return (
     <div className="rail">
       {laidOut.map((item) =>
-        item.kind === 'pending' ? (
+        item.kind === 'draft' ? (
+          <DraftCard key="draft" card={item.data} top={item.top} />
+        ) : item.kind === 'pending' ? (
           <PendingCard key={item.data.key} card={item.data} top={item.top} onRemove={onRemove} onFocus={onFocus} />
         ) : (
           <ThreadCard
@@ -70,6 +90,46 @@ export function CommentRail({
         ),
       )}
     </div>
+  );
+}
+
+function DraftCard({ card, top }: { card: RailDraft; top: number }) {
+  const where = card.startLine === card.line ? `line ${card.line}` : `lines ${card.startLine}–${card.line}`;
+
+  return (
+    <article className="card draft" style={{ top }}>
+      <blockquote>{card.quote}</blockquote>
+
+      {card.commentable ? (
+        <>
+          <textarea
+            autoFocus
+            rows={3}
+            placeholder={`Comment on ${where}…`}
+            value={card.body}
+            onChange={(e) => card.onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) card.onSubmit();
+              if (e.key === 'Escape') card.onCancel();
+            }}
+          />
+          <div className="card-actions">
+            <button className="btn primary tiny" disabled={!card.body.trim()} onClick={card.onSubmit}>
+              Add to review
+            </button>
+            <button className="btn link tiny" onClick={card.onCancel}>
+              Cancel
+            </button>
+          </div>
+        </>
+      ) : (
+        <p className="muted small">
+          GitHub only accepts comments on lines that appear in this pull request's diff, and{' '}
+          {card.startLine === card.line ? `line ${card.line} is` : `lines ${card.startLine}–${card.line} are`}{' '}
+          unchanged. Select a changed passage instead.
+        </p>
+      )}
+    </article>
   );
 }
 
