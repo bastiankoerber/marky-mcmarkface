@@ -1,0 +1,22 @@
+{
+  "name": "pilcrow",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.32.1",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "spike:anchoring": "tsx packages/viewers/markdown/spike/run.ts",
+    "test": "vitest run",
+    "typecheck": "tsc -b",
+    "dev": "node scripts/dev.mjs",
+    "build": "pnpm -C packages/host build"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

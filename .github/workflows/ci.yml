@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: npx tsc --noEmit -p tsconfig.json
+
+      - name: Unit tests
+        run: pnpm vitest run
+
+      # The premise of the whole product is that a prose selection maps to the right source
+      # line. Runs against committed fixtures, so it needs no network and no GitHub token.
+      - name: Anchoring gate
+        run: pnpm spike:anchoring --offline
+
+      # A gate that cannot fail is not a gate. Shifting every stamp by 7 characters must break
+      # it; if this step *succeeds*, the gate has silently lost its teeth.
+      - name: Anchoring gate has teeth
+        run: |
+          if pnpm spike:anchoring --offline --corrupt 7; then
+            echo "::error::The anchoring gate passed with deliberately corrupted stamps."
+            exit 1
+          fi
+          echo "Gate correctly rejected corrupted stamps."
+
+      - name: Build
+        run: pnpm build

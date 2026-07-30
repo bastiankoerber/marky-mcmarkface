@@ -1,0 +1,46 @@
+name: Viewer request
+description: A file type that deserves better than a source diff
+labels: [viewer]
+body:
+  - type: markdown
+    attributes:
+      value: >
+        Viewers are the main extension point, and a first one is about fifty lines — see
+        [docs/writing-a-viewer.md](../blob/main/docs/writing-a-viewer.md). If you are willing
+        to write it yourself, say so; we will help.
+
+  - type: input
+    id: filetype
+    attributes:
+      label: File type
+      placeholder: "*.bpmn, *.ipynb, *.csv, openapi.yaml …"
+    validations:
+      required: true
+
+  - type: textarea
+    id: why
+    attributes:
+      label: What is bad about reviewing it as a source diff today
+    validations:
+      required: true
+
+  - type: dropdown
+    id: anchoring
+    attributes:
+      label: Could a selection in this view map back to a source range?
+      description: >
+        "No" is a perfectly good answer — such viewers degrade to file-level comments and still
+        work. Guessing is the one thing that is not allowed.
+      options:
+        - "Yes — the rendered text corresponds to source text"
+        - "No — it is a diagram or chart with no text mapping"
+        - "Not sure"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: volunteer
+    attributes:
+      label: Would you like to write it?
+      options:
+        - label: I would like to contribute this viewer

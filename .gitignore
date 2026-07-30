@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+
+# Local secrets and local state. `.env.example` is committed; `.env` is not.
+.env
+.env.local
+
+.DS_Store
