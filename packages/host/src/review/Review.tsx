@@ -158,22 +158,37 @@ export function Review({
   };
 
   // Place rail cards next to the prose they refer to, by asking the viewer to anchor each one.
-  const { railPending, railThreads } = useMemo(() => {
+  const { railPending, railThreads, topForLine } = useMemo(() => {
     void railTick;
     const impl = anchoringRef.current;
     const container = impl?.contentContainer();
-    const base = container?.getBoundingClientRect().top ?? 0;
+    const scroller = container?.closest('[data-pilcrow-scroll]') ?? null;
+    const scrollerTop = scroller?.getBoundingClientRect().top ?? 0;
+    const scrolled = scroller?.scrollTop ?? 0;
 
+    /*
+     * Where a card sits, in the scroll container's own content space.
+     *
+     * Measured from the *scroller*, not from the rendered document, because the rail's
+     * coordinate origin is the top of the scrolled content — measuring from the document
+     * instead put every card a constant ~66px too high, the document's padding.
+     *
+     * The scroller's own rect does not move when it scrolls, so `scrollTop` has to be added
+     * back to land in content space. Cards then stay pinned to their paragraphs at any scroll
+     * position, which they did not do when the document and rail were separate scrollers: the
+     * offset was right, but it was being applied in a coordinate space that never moved.
+     */
     const topFor = (line: number): number => {
       if (!impl || !headSource) return line * 22;
       const offset = lineOffset(headSource, line);
       const anchored = impl.anchor({ side: 'RIGHT', start: offset, end: offset + 1 });
       if (!anchored) return line * 22;
       const rect = 'getBoundingClientRect' in anchored ? anchored.getBoundingClientRect() : null;
-      return rect ? rect.top - base : line * 22;
+      return rect ? rect.top - scrollerTop + scrolled : line * 22;
     };
 
     return {
+      topForLine: topFor,
       railPending: pending
         .filter((c) => c.path === activePath)
         .map<RailPending>((c) => ({
@@ -275,82 +290,71 @@ export function Review({
           />
         </aside>
 
-        <main className="pane doc-pane" data-pilcrow-scroll="">
-          {!file ? (
-            <p className="muted">Select a file.</p>
-          ) : file.skipped ? (
-            <p className="muted">{file.skipped}</p>
-          ) : Active ? (
-            <Suspense fallback={<p className="muted">Loading viewer…</p>}>
-              <Active
-                key={`${file.path}:${mode}`}
-                file={{ path: file.path, base: file.base, head: file.head, hunks: file.patch.hunks }}
-                annotations={[]}
-                host={host}
-                registerAnchoring={registerAnchoring}
-                mode={mode === 'final' ? 'final' : 'rich'}
-              />
-            </Suspense>
-          ) : (
-            <p className="muted">No viewer claims this file.</p>
-          )}
-        </main>
+        {/*
+          The document and its margin are one unit: a single scroll container, centred together.
+          Wide screens then push the rail *closer* to the prose rather than stranding it at the
+          window edge, and cards cannot drift out of step with the text because there is only one
+          thing scrolling.
+        */}
+        <div className="reading-area" data-pilcrow-scroll="">
+          <main className="doc-pane">
+            {!file ? (
+              <p className="muted">Select a file.</p>
+            ) : file.skipped ? (
+              <p className="muted">{file.skipped}</p>
+            ) : Active ? (
+              <Suspense fallback={<p className="muted">Loading viewer…</p>}>
+                <Active
+                  key={`${file.path}:${mode}`}
+                  file={{ path: file.path, base: file.base, head: file.head, hunks: file.patch.hunks }}
+                  annotations={[]}
+                  host={host}
+                  registerAnchoring={registerAnchoring}
+                  mode={mode === 'final' ? 'final' : 'rich'}
+                />
+              </Suspense>
+            ) : (
+              <p className="muted">No viewer claims this file.</p>
+            )}
+          </main>
 
-        <aside className="pane rail-pane">
-          <CommentRail
-            pending={railPending}
-            threads={railThreads}
-            onRemove={(key) => setPending((prev) => prev.filter((c) => c.id !== key))}
-            onReply={async (commentId, body) => {
-              await api.reply(owner, repo, number, commentId, body);
-              setPr(await api.pr(owner, repo, number));
-            }}
-            onResolve={async (threadId, isResolved) => {
-              await api.resolveThread(threadId, isResolved);
-              setPr(await api.pr(owner, repo, number));
-            }}
-            onFocus={(line) => {
-              const impl = anchoringRef.current;
-              if (!impl || !headSource) return;
-              impl.scrollTo({ side: 'RIGHT', start: lineOffset(headSource, line), end: lineOffset(headSource, line) + 1 });
-            }}
-          />
-        </aside>
-      </div>
-
-      {draft && (
-        <div className="composer">
-          <blockquote>{draft.quote}</blockquote>
-          {draft.commentable ? (
-            <>
-              <textarea
-                autoFocus
-                rows={3}
-                placeholder={`Comment on ${draft.startLine === draft.line ? `line ${draft.line}` : `lines ${draft.startLine}–${draft.line}`}…`}
-                value={draftBody}
-                onChange={(e) => setDraftBody(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) addComment();
-                  if (e.key === 'Escape') setDraft(null);
-                }}
-              />
-              <div className="composer-actions">
-                <button className="btn primary" disabled={!draftBody.trim()} onClick={addComment}>
-                  Add to review
-                </button>
-                <button className="btn link" onClick={() => setDraft(null)}>
-                  Cancel
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="muted small">
-              GitHub only accepts comments on lines that appear in this pull request's diff, and
-              lines {draft.startLine}–{draft.line} are unchanged. Select a changed passage instead.
-            </p>
-          )}
+          <aside className="rail-pane">
+            <CommentRail
+              draft={
+                draft
+                  ? {
+                      quote: draft.quote,
+                      startLine: draft.startLine,
+                      line: draft.line,
+                      commentable: draft.commentable,
+                      body: draftBody,
+                      top: topForLine(draft.startLine),
+                      onChange: setDraftBody,
+                      onSubmit: addComment,
+                      onCancel: () => setDraft(null),
+                    }
+                  : null
+              }
+              pending={railPending}
+              threads={railThreads}
+              onRemove={(key) => setPending((prev) => prev.filter((c) => c.id !== key))}
+              onReply={async (commentId, body) => {
+                await api.reply(owner, repo, number, commentId, body);
+                setPr(await api.pr(owner, repo, number));
+              }}
+              onResolve={async (threadId, isResolved) => {
+                await api.resolveThread(threadId, isResolved);
+                setPr(await api.pr(owner, repo, number));
+              }}
+              onFocus={(line) => {
+                const impl = anchoringRef.current;
+                if (!impl || !headSource) return;
+                impl.scrollTo({ side: 'RIGHT', start: lineOffset(headSource, line), end: lineOffset(headSource, line) + 1 });
+              }}
+            />
+          </aside>
         </div>
-      )}
+      </div>
 
       <footer className="review-foot">
         <input

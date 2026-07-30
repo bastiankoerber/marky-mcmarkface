@@ -237,7 +237,9 @@ input, textarea {
 
 /* dashboard ---------------------------------------------------------------- */
 
-.dash { padding: 16px; }
+/* `width: 100%` is load-bearing: auto inline margins on a flex item disable cross-axis stretch,
+   so without it this collapses to fit-content and silently loses a column. */
+.dash { padding: 16px; width: 100%; max-width: 1600px; margin-inline: auto; flex: 1; overflow-y: auto; min-height: 0; }
 .dash-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip {
@@ -307,15 +309,35 @@ input, textarea {
 
 /* review ------------------------------------------------------------------- */
 
-.review { display: flex; flex-direction: column; height: calc(100vh - 41px); }
+/* Fills whatever the app shell gives it, rather than guessing the header's height — a banner
+   used to push this past the viewport and produce a second, page-level scrollbar. */
+.review { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .review-head { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
 .review-title { display: flex; flex-direction: column; flex: 1; }
 .modes { display: flex; gap: 4px; }
 
-.review-body { display: grid; grid-template-columns: var(--tree-w) 1fr var(--rail-w); flex: 1; min-height: 0; }
+.review-body { display: grid; grid-template-columns: var(--tree-w) minmax(0, 1fr); flex: 1; min-height: 0; }
 .pane { overflow: auto; }
-.tree-pane { border-right: 1px solid var(--line); background: var(--bg-soft); }
-.doc-pane { padding: 24px 32px; }
+.tree-pane { border-right: 1px solid var(--line); background: var(--bg-soft); overflow: auto; }
+
+/*
+ * The document and its margin are one unit.
+ *
+ * A single scroll container is what keeps comment cards pinned to their paragraphs; two
+ * independent scrollers meant the rail froze while the prose moved. Centring the pair means a
+ * wide screen brings the margin *closer* to the text, instead of stranding it at the far edge
+ * of a 2000px pane with 1300px of nothing in between.
+ */
+.reading-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-w);
+  max-width: 1180px;
+  width: 100%;
+  margin-inline: auto;
+  overflow: auto;
+  min-height: 0;
+}
+.doc-pane { padding: 24px 32px; min-width: 0; }
 .rail-pane { border-left: 1px solid var(--line); position: relative; }
 
 .tree-head { padding: 8px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
@@ -331,7 +353,8 @@ input, textarea {
 
 /* rendered markdown -------------------------------------------------------- */
 
-.md-body { max-width: 68ch; }
+/* A comfortable measure. Extra width becomes margin, never longer lines. */
+.md-body { max-width: 78ch; }
 .md-body h1, .md-body h2, .md-body h3 { margin: 1.4em 0 0.5em; line-height: 1.25; }
 .md-body h1 { font-size: 26px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
 .md-body h2 { font-size: 20px; border-bottom: 1px solid var(--line); padding-bottom: 5px; }
@@ -382,6 +405,8 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   transition: top 0.15s ease;
 }
 .card.pending { background: var(--pending); border-color: #d4a72c; }
+.card.draft { border-color: var(--accent); box-shadow: 0 4px 16px rgb(0 0 0 / 0.14); cursor: default; z-index: 2; }
+.card.draft blockquote { border-left-color: var(--accent); }
 .card.resolved { opacity: 0.55; }
 .card.outdated { border-style: dashed; }
 .card header { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; }
@@ -392,21 +417,6 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
 .comment { border-top: 1px solid var(--line); padding-top: 5px; margin-top: 5px; }
 
 /* composer / footer -------------------------------------------------------- */
-
-.composer {
-  position: fixed;
-  right: calc(var(--rail-w) + 24px);
-  bottom: 64px;
-  width: 380px;
-  padding: 12px;
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  background: var(--bg);
-  box-shadow: 0 8px 28px rgb(0 0 0 / 0.18);
-  z-index: 10;
-}
-.composer blockquote { margin: 0 0 8px; padding-left: 8px; border-left: 3px solid var(--accent); color: var(--muted); font-size: 12px; max-height: 4em; overflow: hidden; }
-.composer-actions { display: flex; gap: 8px; margin-top: 8px; }
 
 .review-foot {
   display: flex;
@@ -423,5 +433,32 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   font-size: 17px;
   font-weight: 500;
   letter-spacing: -0.01em;
+  max-width: 60ch;
 }
 .brand { display: inline-flex; align-items: center; gap: 2px; }
+
+/* app shell ----------------------------------------------------------------- */
+
+/* The shell owns the viewport height so nothing downstream has to guess the header's size. */
+.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+.app > .topbar, .app > .banner { flex: none; }
+
+/* large screens -------------------------------------------------------------- */
+
+/*
+ * One step up, not a fluid scale. Extra width becomes margin and a slightly roomier sidebar;
+ * the reading measure does not grow, because a longer line is harder to read, not easier.
+ */
+@media (min-width: 1600px) {
+  :root { --tree-w: 300px; }
+  body { font-size: 15px; }
+  .dash { padding: 32px; }
+  .doc-pane { padding: 32px 40px; }
+}
+
+/* Narrow screens: the chrome yields, the prose does not. At 1024 the sidebar and rail were
+   taking 580px between them and squeezing the reading column to 380. */
+@media (max-width: 1200px) {
+  :root { --tree-w: 220px; --rail-w: 260px; }
+  .doc-pane { padding: 20px 22px; }
+}
