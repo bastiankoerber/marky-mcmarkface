@@ -1,0 +1,50 @@
+name: Bug report
+description: Something in Pilcrow behaves wrongly
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: And what you expected instead.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: view
+    attributes:
+      label: Which view
+      options:
+        - Rich diff
+        - Final
+        - Source
+        - Dashboard
+        - Sign-in
+        - Not view-specific
+    validations:
+      required: true
+
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Smallest Markdown that reproduces it
+      description: >
+        For anything involving comment placement or the rendered diff, this is far more useful
+        than a screenshot — anchoring problems are almost always specific to one construct
+        (a table, an escape, raw HTML, a nested list).
+      render: markdown
+
+  - type: input
+    id: pr
+    attributes:
+      label: Pull request URL
+      description: If it is public and reproduces there.
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      value: |
+        - macOS version:
+        - Node version (`node -v`):
+        - Pilcrow version or commit:
