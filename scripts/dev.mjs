@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 /**
- * One command for both halves: the Hono API on 127.0.0.1:7423 and the Vite dev server on 5173,
+ * One command for both halves: the Hono API on 127.0.0.1:7423 and the Vite dev server on 5180,
  * which proxies /api to it. In production there is only the Hono server — it serves the built
  * assets itself, so there is a single origin and no proxy.
  */

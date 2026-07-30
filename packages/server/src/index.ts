@@ -1,3 +1,7 @@
+// Must stay first: ESM evaluates imports in order, and this one populates process.env from
+// `.env` before anything below reads it.
+import './env.js';
+
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { serveStatic } from '@hono/node-server/serve-static';

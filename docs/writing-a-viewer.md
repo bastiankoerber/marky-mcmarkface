@@ -28,7 +28,7 @@ Create `packages/viewers/csv/`:
 import { defineViewer } from '@pilcrow/viewer-api';
 import type { ViewerProps } from '@pilcrow/viewer-api';
 
-function CsvViewer({ file }: ViewerProps) {
+export function CsvViewer({ file }: ViewerProps) {
   const rows = (file.head ?? '').split('\n').map((line) => line.split(','));
   return (
     <table>
@@ -68,7 +68,9 @@ const csv = defineViewer({
 export const builtinViewers = [markdown, csv, sourceDiff];
 ```
 
-That's a working viewer.
+Register it, and the registry resolves it for `.csv` files. Non-Markdown files fall through to
+the source diff only because that viewer claims `**/*` at rank 9000 — beat that rank and yours
+opens instead.
 
 ## `sourceMapping: false` is a real answer
 
@@ -82,8 +84,11 @@ nothing downstream can detect that.
 
 ## Adding prose commenting
 
-If your format *does* have a text-to-source correspondence, implement `AnchoringImpl` and call
-`registerAnchoring`:
+Two halves, and you need both. `registerAnchoring` tells the host where things *are*;
+`host.onSelect` is what actually opens the comment composer when the reader selects something.
+A viewer that implements only the first gets its existing comments positioned but can never
+create a new one. See `MarkdownViewer.tsx` for the ~20 lines that wire a `mouseup` to
+`host.onSelect`.
 
 ```ts
 registerAnchoring({
@@ -106,55 +111,58 @@ during render, plus `data-pilcrow-x` when that element's text maps 1:1 onto the 
 `packages/viewers/markdown/src/render.ts` — the technique generalises to any format you render
 yourself.
 
-`RectAnchor` exists for renderers with no DOM text range — a BPMN element, a Mermaid node, a
-spreadsheet cell. Return normalised coordinates relative to an element instead of a `Range`.
+`RectAnchor` is defined for renderers with no DOM text range — a BPMN element, a Mermaid node, a
+spreadsheet cell. Note that the host does not position cards from one yet (it looks for
+`getBoundingClientRect`), so returning a `RectAnchor` today yields a mispositioned card. Return
+`null` instead until that lands.
 
-## The conformance gate
-
-If you set `sourceMapping: true`, CI runs a property test over your viewer:
+## The anchoring gate
 
 ```bash
 pnpm spike:anchoring --offline
+pnpm spike:anchoring --offline --corrupt 7   # must FAIL — proves the gate still has teeth
 ```
 
-For N random source ranges it asserts `describe(anchor(r)) === r`, and separately that every
-stamp you emit is honest — `source.slice(start, end)` must equal the text actually rendered.
+**Be aware of its current scope:** the harness imports the markdown viewer's `parse`, `render`
+and `anchoring` modules directly, so it exercises *that* viewer only. It is not yet a generic
+per-viewer conformance kit, and nothing reads your `sourceMapping` flag.
 
-Prove the gate can catch you before trusting it:
-
-```bash
-pnpm spike:anchoring --offline --corrupt 7   # must FAIL
-```
-
-Viewers declaring `sourceMapping: false` are skipped, not failed.
+If your viewer does source mapping, test it the way `packages/viewers/markdown/src/
+anchoring.test.ts` does: assert against `source.indexOf(...)` rather than against your own
+stamps, so the test is independent of the machinery it is testing. Making the gate generic is a
+good contribution in its own right.
 
 ## Manifest reference
 
 | Field | Meaning |
 |---|---|
-| `id` | Stable unique id, e.g. `pilcrow.csv`. Users' viewer overrides are keyed on it. |
+| `id` | Stable unique id, e.g. `pilcrow.csv`. |
+| `displayName` | Shown to the reader. Required. |
 | `selector` | picomatch globs, not bare extensions. `**/docs/**/*.md` claims only docs. |
 | `rank` | Lower wins. Builtins 100, contributions default 500. Source-diff sits at 9000. |
 | `priority` | `'option'` never auto-opens; the user must pick it explicitly. |
 | `safe` | `false` if you execute embedded content. Gates on the repo's trust decision. |
 | `capabilities.diff` | `'native'` if you render your own diff; `'new-only'` if you show head only. |
 
-Two viewers can claim the same file — the lower `rank` opens, and both appear in "open with".
+Two viewers can claim the same file; the lower `rank` opens.
 
-## The cheaper tier
+## Not built yet
 
-If you only want to *transform* the built-in markdown rendering — Mermaid, KaTeX, PlantUML —
-don't write a viewer. Ship a `postProcess` instead:
+These exist in the type definitions and are **not** acted on by the host. Do not build against
+them expecting them to work; they are declared so that adding them later is additive:
 
-```ts
-export default defineViewer({
-  manifest: { /* … */ },
-  component: null,
-  postProcess: (el) => { /* mutate the rendered DOM in place */ },
-});
-```
+| Field | Intended for | Status |
+|---|---|---|
+| `postProcess` | transforming the built-in render (Mermaid, KaTeX) instead of replacing it | never called |
+| `remarkPlugins` | contributing into the shared parse pipeline | never read |
+| `capabilities.safe` | gating viewers that execute embedded content | never read — **not a security control** |
+| `capabilities.diff` / `anchorGranularity` / `editable` | host layout decisions | advisory only |
+| user "open with" overrides | letting a reader pick a different viewer | `candidates()` exists, no menu calls it |
 
-Anchoring keeps working, because the markdown viewer is still the one rendering.
+Implementing any of these in the host is a welcome contribution.
+
+Worth stating plainly: a viewer is fully-privileged, same-origin code. It can reach the local API
+that holds a `repo`-scoped GitHub token. Reviewing a contributed viewer is a security review.
 
 ## Checklist
 

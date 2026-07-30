@@ -48,6 +48,24 @@ every card a constant ~66px too high — that is the document's own padding.
 Auto inline margins on a flex item disable cross-axis stretch, so `max-width` + `margin-inline:
 auto` alone collapses the dashboard to fit-content and silently drops a column.
 
+**7. The registry's answer is final.**
+
+`Review.tsx` must use whatever `registry.resolve(path)` returns. It once called `resolve()` and
+then hard-coded every non-Markdown file to the source diff, which made the entire plugin system
+inert — a contributed viewer could never render. Only an explicit `source` mode overrides it.
+
+**8. The draft comment lives in the rail, not at the cursor.**
+
+It is a `DraftCard` sorted by position among the other cards, in the shared `.reading-area`
+scroller. It used to be a fixed panel at the bottom-right, which on a wide screen sat ~950px from
+the text being commented on.
+
+**9. Waiting states go through `Loading`.**
+
+`src/Loading.tsx` — pass a specific `line` ("Opening owner/repo #7…"), optionally a `slowLine`,
+and `variant="inline"` inside an existing pane. It deliberately renders nothing for the first
+180ms so fast responses do not flash. Never write a bare "Loading…" string.
+
 ## Design
 
 The first-run screens live in `src/onboarding/`. The bar is Apple, not devtool:
