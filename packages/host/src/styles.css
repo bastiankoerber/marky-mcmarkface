@@ -462,3 +462,31 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   :root { --tree-w: 220px; --rail-w: 260px; }
   .doc-pane { padding: 20px 22px; }
 }
+
+/* Repo chips: pinning and filtering are separate hit targets. */
+.chip-group {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.chip-group.on { border-color: var(--accent); }
+.chip-pin {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 3px 4px 3px 9px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chip-pin[aria-pressed='true'] { color: #d4a72c; }
+.chip-pin:hover { color: var(--accent); }
+.chip-group .chip.chip-filter { border: none; border-radius: 0; padding-left: 4px; background: none; }
+.chip-group.on .chip.chip-filter { background: var(--accent); color: #fff; }
+
+/* Draft card: the note explaining a file-level fallback. */
+.card .note { margin: 0 0 6px; }

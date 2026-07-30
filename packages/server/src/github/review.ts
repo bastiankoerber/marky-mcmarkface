@@ -19,6 +19,11 @@ export interface PendingComment {
   body: string;
   /** Rendered as a ```suggestion block; must cover whole lines. */
   suggestion?: string;
+  /**
+   * `file` attaches the comment to the whole file rather than a line — the escape hatch for a
+   * passage GitHub cannot anchor because it is not part of the diff. Defaults to `line`.
+   */
+  subjectType?: 'line' | 'file';
 }
 
 export type ReviewEvent = 'COMMENT' | 'APPROVE' | 'REQUEST_CHANGES';
@@ -27,6 +32,8 @@ export interface SubmitReviewInput {
   event: ReviewEvent;
   body: string;
   comments: PendingComment[];
+  /** Head SHA, required to attach file-level comments. */
+  commitId?: string;
 }
 
 function renderBody(c: PendingComment): string {
@@ -66,20 +73,53 @@ export async function submitReview(
   repo: string,
   number: number,
   input: SubmitReviewInput,
-): Promise<{ id: number; url: string }> {
+): Promise<{ id: number; url: string; fileCommentsPosted: number; fileCommentErrors: string[] }> {
+  // File-level comments cannot ride along in the review: the batch endpoint's `comments[]`
+  // accepts only path/position/body/line/side/start_line/start_side — `subject_type` exists
+  // solely on the single-comment endpoint. So they go up separately, after the review itself.
+  const lineComments = input.comments.filter((c) => c.subjectType !== 'file');
+  const fileComments = input.comments.filter((c) => c.subjectType === 'file');
+
   try {
     const res = await gh.write<any>('POST', `/repos/${owner}/${repo}/pulls/${number}/reviews`, {
       event: input.event,
       body: input.body,
-      comments: input.comments.map(toApiComment),
+      comments: lineComments.map(toApiComment),
     });
-    return { id: res.id, url: res.html_url };
+
+    const fileCommentErrors: string[] = [];
+    let fileCommentsPosted = 0;
+
+    if (fileComments.length > 0) {
+      if (!input.commitId) {
+        fileCommentErrors.push('No commit SHA was supplied, so file-level comments were not posted.');
+      } else {
+        for (const comment of fileComments) {
+          try {
+            await gh.write('POST', `/repos/${owner}/${repo}/pulls/${number}/comments`, {
+              path: comment.path,
+              body: renderBody(comment),
+              commit_id: input.commitId,
+              subject_type: 'file',
+            });
+            fileCommentsPosted++;
+          } catch (err) {
+            // The review is already posted; say precisely which notes did not make it rather
+            // than failing the whole submission after the fact.
+            fileCommentErrors.push(`${comment.path}: ${(err as Error).message}`);
+          }
+        }
+      }
+    }
+
+    return { id: res.id, url: res.html_url, fileCommentsPosted, fileCommentErrors };
   } catch (err) {
     const detail = (err as { body?: unknown }).body;
     // A 422 here almost always means a comment landed on a line outside the diff. The UI greys
     // those out, but a PR can be updated underneath us, so name the offending files rather than
     // surfacing GitHub's opaque "Validation Failed".
-    const message = describeValidationFailure(detail, input.comments);
+    // Only the line comments were sent to this endpoint, so only they can be at fault.
+    const message = describeValidationFailure(detail, lineComments);
     throw new ReviewSubmitError(message ?? (err as Error).message, detail);
   }
 }

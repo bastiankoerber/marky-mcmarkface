@@ -9,6 +9,8 @@ export interface RailPending {
   body: string;
   quote: string;
   top: number;
+  /** True when this is attached to the file rather than a line. */
+  fileLevel?: boolean;
 }
 
 export interface RailThread {
@@ -100,35 +102,38 @@ function DraftCard({ card, top }: { card: RailDraft; top: number }) {
     <article className="card draft" style={{ top }}>
       <blockquote>{card.quote}</blockquote>
 
-      {card.commentable ? (
-        <>
-          <textarea
-            autoFocus
-            rows={3}
-            placeholder={`Comment on ${where}…`}
-            value={card.body}
-            onChange={(e) => card.onChange(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) card.onSubmit();
-              if (e.key === 'Escape') card.onCancel();
-            }}
-          />
-          <div className="card-actions">
-            <button className="btn primary tiny" disabled={!card.body.trim()} onClick={card.onSubmit}>
-              Add to review
-            </button>
-            <button className="btn link tiny" onClick={card.onCancel}>
-              Cancel
-            </button>
-          </div>
-        </>
-      ) : (
-        <p className="muted small">
-          GitHub only accepts comments on lines that appear in this pull request's diff, and{' '}
-          {card.startLine === card.line ? `line ${card.line} is` : `lines ${card.startLine}–${card.line} are`}{' '}
-          unchanged. Select a changed passage instead.
+      {/*
+        An unchanged passage is not a dead end. GitHub will not take a comment on a line outside
+        the diff, but it will take one attached to the file — so offer that rather than telling
+        the reader their thought cannot be recorded. Reviewing prose means often wanting to say
+        something about a paragraph nobody edited.
+      */}
+      {!card.commentable && (
+        <p className="muted small note">
+          {card.startLine === card.line ? `Line ${card.line} is` : `Lines ${card.startLine}–${card.line} are`}{' '}
+          unchanged, so GitHub cannot pin a comment there. This will be posted on the file instead.
         </p>
       )}
+
+      <textarea
+        autoFocus
+        rows={3}
+        placeholder={card.commentable ? `Comment on ${where}…` : 'Comment on this file…'}
+        value={card.body}
+        onChange={(e) => card.onChange(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) card.onSubmit();
+          if (e.key === 'Escape') card.onCancel();
+        }}
+      />
+      <div className="card-actions">
+        <button className="btn primary tiny" disabled={!card.body.trim()} onClick={card.onSubmit}>
+          {card.commentable ? 'Add to review' : 'Comment on file'}
+        </button>
+        <button className="btn link tiny" onClick={card.onCancel}>
+          Cancel
+        </button>
+      </div>
     </article>
   );
 }
@@ -162,7 +167,11 @@ function PendingCard({
       <header>
         <span className="tag">pending</span>
         <span className="muted small">
-          {card.startLine === card.line ? `line ${card.line}` : `lines ${card.startLine}–${card.line}`}
+          {card.fileLevel
+            ? 'on this file'
+            : card.startLine === card.line
+              ? `line ${card.line}`
+              : `lines ${card.startLine}–${card.line}`}
         </span>
         <button
           className="btn link tiny"
