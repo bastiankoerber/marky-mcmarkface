@@ -38,6 +38,15 @@ page.
 source lines you meant and posts a normal GitHub review comment there. Existing threads appear
 in the margin beside the text they refer to, with replies and resolve.
 
+**Nothing is sent until you submit.** Comments collect into one review, the way GitHub's own
+review model works — the author gets a single notification rather than a drip of emails while
+you read. Drafts survive a reload and are listed on the dashboard, so an unsubmitted review is
+never mistaken for feedback already given. If new commits land while you were writing, the
+drafts are dropped rather than re-pinned to lines that have since moved, and Pilcrow says so.
+
+**Light, dark, or whatever your Mac is doing.** Three-state switch in the top bar. Dark is warm
+rather than blue-black, and the paper grain is light-mode only.
+
 **Knows what is waiting for you.** One dashboard across every repository: pull requests awaiting
 your review, your open ones, and recent activity — with the Markdown-heavy ones badged, since
 those are the ones worth opening here.

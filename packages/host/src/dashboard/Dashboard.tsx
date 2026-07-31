@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { DashboardData, Prefs } from '../api.js';
 import { api } from '../api.js';
+import { draftCounts, draftKey } from '../review/draftStore.js';
 
 type Data = DashboardData & { prefs: Prefs; staleError?: string | null };
 
@@ -17,6 +18,9 @@ export function Dashboard({
 }) {
   const [filter, setFilter] = useState<string | null>(null);
   const [mdOnly, setMdOnly] = useState(true);
+  // Read once per dashboard mount: you can only change the buffer from the review screen, and
+  // coming back from one remounts this.
+  const drafts = useMemo(draftCounts, []);
 
   const pinned = new Set(data.prefs.pinnedRepos);
 
@@ -97,13 +101,13 @@ export function Dashboard({
       <div className="dash-grid">
         <Column title="Needs my review" count={review.length} empty="Nothing waiting on you.">
           {review.map((pr) => (
-            <PrCard key={pr.url} pr={pr} onOpen={onOpen} />
+            <PrCard key={pr.url} pr={pr} onOpen={onOpen} drafts={drafts} />
           ))}
         </Column>
 
         <Column title="My open pull requests" count={mine.length} empty="You have no open pull requests.">
           {mine.map((pr) => (
-            <PrCard key={pr.url} pr={pr} onOpen={onOpen} />
+            <PrCard key={pr.url} pr={pr} onOpen={onOpen} drafts={drafts} />
           ))}
         </Column>
 
@@ -153,14 +157,24 @@ function Column({
   );
 }
 
+/**
+ * A pull request you left unsent comments on says so here.
+ *
+ * Otherwise the buffer is invisible from outside the review screen, and an unsubmitted review is
+ * indistinguishable from one never started — which is how a reader concludes they already gave
+ * their feedback when the author has seen none of it.
+ */
 function PrCard({
   pr,
   onOpen,
+  drafts,
 }: {
   pr: DashboardData['reviewRequested'][number];
   onOpen: (owner: string, repo: string, number: number) => void;
+  drafts: Record<string, number>;
 }) {
   const [owner, repo] = pr.repository.nameWithOwner.split('/');
+  const unsent = drafts[draftKey(owner ?? '', repo ?? '', pr.number)] ?? 0;
   const allMarkdown = pr.markdown.total > 0 && pr.markdown.count === pr.markdown.total && !pr.markdown.truncated;
 
   return (
@@ -169,6 +183,11 @@ function PrCard({
         <span className="pr-repo">{repo}</span>
         <span className="pr-num">#{pr.number}</span>
         {pr.isDraft && <span className="tag">draft</span>}
+        {unsent > 0 && (
+          <span className="tag unsent-tag">
+            {unsent} unsent
+          </span>
+        )}
         {allMarkdown ? (
           <span className="tag md">all markdown</span>
         ) : pr.markdown.count > 0 ? (

@@ -1,10 +1,11 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { offsetToLine, quoteFor, type AnchoringImpl, type SourceRange, type ViewerHost } from '@pilcrow/viewer-api';
-import { api, type PendingComment, type PrDetail, type ReviewEvent } from '../api.js';
+import { api, type PrDetail, type ReviewEvent } from '../api.js';
 import { createRegistry } from '../viewers/index.js';
 import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
 import { CommentRail, type RailPending, type RailThread } from './CommentRail.jsx';
+import { loadDrafts, saveDrafts, type LocalComment } from './draftStore.js';
 
 type Mode = 'rich' | 'final' | 'source';
 
@@ -16,13 +17,6 @@ interface Draft {
   commentable: boolean;
 }
 
-/**
- * Pending comments carry a stable id rather than being addressed by array index. The rail only
- * shows the active file's comments, so its indices are into a *filtered* list — using those to
- * splice the full buffer deletes the wrong comment as soon as two files have pending notes.
- */
-type LocalComment = PendingComment & { id: string };
-
 let commentSeq = 0;
 const nextCommentId = () => `c${++commentSeq}`;
 
@@ -30,11 +24,14 @@ export function Review({
   owner,
   repo,
   number,
+  theme,
   onBack,
 }: {
   owner: string;
   repo: string;
   number: number;
+  /** Resolved, never 'system' — a viewer has to know which way to draw. */
+  theme: 'light' | 'dark';
   onBack: () => void;
 }) {
   const [pr, setPr] = useState<PrDetail | null>(null);
@@ -55,6 +52,10 @@ export function Review({
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [railTick, setRailTick] = useState(0);
+  const [draftNotice, setDraftNotice] = useState<string | null>(null);
+  // Nothing may be written back until the stored buffer has been read, or the first save
+  // (with an empty buffer) erases exactly what we are about to restore.
+  const restored = useRef(false);
 
   const anchoringRef = useRef<AnchoringImpl | null>(null);
   const registry = useMemo(() => createRegistry(), []);
@@ -69,12 +70,35 @@ export function Review({
         if (!live) return;
         setPr(data);
         setActivePath(data.files.find((f) => /\.mdx?$/i.test(f.path))?.path ?? data.files[0]?.path ?? null);
+
+        // Unsent comments outlive a reload. They only exist in this tab until you submit, and
+        // losing an afternoon of margin notes to a refresh is not a reasonable price for that.
+        const { buffer, stale } = loadDrafts(owner, repo, number, data.headSha);
+        if (buffer) {
+          // Re-id on restore: the module counter restarts at c1 on every load, so reusing the
+          // stored ids would collide with the next comment written in this session.
+          setPending(buffer.comments.map((c) => ({ ...c, id: nextCommentId() })));
+          setSummary(buffer.summary);
+          const n = buffer.comments.length;
+          setDraftNotice(`Restored ${n} unsent comment${n === 1 ? '' : 's'} from your last visit.`);
+        } else if (stale > 0) {
+          setDraftNotice(
+            `${stale} unsent comment${stale === 1 ? ' was' : 's were'} discarded: new commits have been pushed since ` +
+              `${stale === 1 ? 'it was' : 'they were'} written, so the lines no longer match.`,
+          );
+        }
+        restored.current = true;
       })
       .catch((err) => live && setError((err as Error).message));
     return () => {
       live = false;
     };
   }, [owner, repo, number]);
+
+  useEffect(() => {
+    if (!restored.current || !pr) return;
+    saveDrafts(owner, repo, number, { headSha: pr.headSha, summary, comments: pending });
+  }, [pending, summary, pr, owner, repo, number]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -130,9 +154,9 @@ export function Review({
       },
       commentableRanges: () => file?.patch.rightLines ?? [],
       requestComment: () => {},
-      theme: 'light',
+      theme,
     }),
-    [headSource, commentableAt, file],
+    [headSource, commentableAt, file, theme],
   );
 
   const addComment = () => {
@@ -326,6 +350,14 @@ export function Review({
           {w}
         </div>
       ))}
+      {draftNotice && (
+        <div className="banner note">
+          {draftNotice}
+          <button className="btn link small" onClick={() => setDraftNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {submitted && (
         <div className="banner ok">
           Review submitted. <a href={submitted} target="_blank" rel="noreferrer">View on GitHub</a>
@@ -424,9 +456,22 @@ export function Review({
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
         />
-        <span className="muted small">
-          {pending.length} pending comment{pending.length === 1 ? '' : 's'}
-        </span>
+        {/*
+          Say plainly that nothing has been sent.
+
+          The buffered model is GitHub's own — one review, one notification to the author,
+          rather than a drip of separate emails as you read — but it is invisible unless we
+          say so, and "pending" alone does not tell anyone whether the author can already see
+          their comments.
+        */}
+        {pending.length > 0 && (
+          <div className="unsent">
+            <strong>
+              {pending.length} comment{pending.length === 1 ? '' : 's'} · not sent yet
+            </strong>
+            <span className="muted tiny">Kept on this Mac. Goes to GitHub as one review when you submit.</span>
+          </div>
+        )}
         <button className="btn" disabled={submitting || (!summary.trim() && pending.length === 0)} onClick={() => void submit('COMMENT')}>
           Comment
         </button>

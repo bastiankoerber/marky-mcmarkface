@@ -67,7 +67,21 @@ It is a `DraftCard` sorted by position among the other cards, in the shared `.re
 scroller. It used to be a fixed panel at the bottom-right, which on a wide screen sat ~950px from
 the text being commented on.
 
-**9. Waiting states go through `Loading`.**
+**9. Unsent comments are persisted, and keyed by head SHA.**
+
+`src/review/draftStore.ts` writes the pending buffer to `localStorage` on every change and
+restores it when the review opens. A reload used to throw away an afternoon of margin notes,
+which is a steep price for a model where nothing reaches GitHub until you submit.
+
+**The stored `headSha` is load-bearing.** Comment positions are line numbers into the head file,
+so a buffer written against an older commit would pin its comments to whatever text now occupies
+those rows. `loadDrafts` discards a stale buffer and reports the count so the reader is told,
+rather than silently restoring wrong-line comments.
+
+Re-id on restore. The module's `commentSeq` counter restarts at `c1` on every page load, so
+reusing stored ids collides with the next comment written in the session.
+
+**10. Waiting states go through `Loading`.**
 
 `src/Loading.tsx` — pass a specific `line` ("Opening owner/repo #7…"), optionally a `slowLine`,
 and `variant="inline"` inside an existing pane. It deliberately renders nothing for the first
@@ -98,6 +112,20 @@ beat GitHub's diff view look exactly like it.
 Light is the default deliberately: the positive-polarity reading advantage is well replicated
 and grows as type gets smaller. Dark is a first-class equal and is *warm* — a cool blue-black is
 precisely what we are avoiding. Grain is light-mode only; on dark it reads as screen dirt.
+
+**There is one palette, not two.** Every colour token is a `light-dark()` pair resolved against
+`color-scheme`, so `src/theme.ts` switches themes by setting a single `data-theme` attribute and
+nothing else has to know. Two consequences worth keeping:
+
+- No duplicated dark block to drift out of sync with the light one. Add a colour token as a pair
+  or not at all.
+- No flash of the wrong theme on load, because the choice is made in CSS rather than by a script
+  that runs after first paint. Do not reintroduce a `@media (prefers-color-scheme: dark)` block
+  that redefines tokens — the media query belongs only in `theme.ts`, where it answers "what does
+  *system* currently mean" for the viewer host.
+
+The switch is three states, never a toggle: a two-way control cannot express "follow the system",
+and once flipped it stops following it forever.
 
 Colour is authored in **OKLCH** so the ramp is perceptually even, and borders are
 `color-mix(in oklab, currentColor N%, transparent)` so a hairline sits correctly on paper, desk
