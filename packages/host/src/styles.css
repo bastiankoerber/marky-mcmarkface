@@ -62,35 +62,46 @@
 }
 
 :root {
+  /*
+   * Light and dark are one list, not two.
+   *
+   * `light-dark()` resolves against the used `color-scheme`, so the switch below only has to set
+   * that one property — no second palette to keep in sync, and no flash of the wrong theme while
+   * JavaScript boots, because the choice is made by CSS rather than by a script that runs after
+   * first paint.
+   *
+   * Dark is a first-class equal, and it is *warm*: hue stays in the paper family. A cool
+   * blue-black is precisely the GitHub tell this design exists to avoid.
+   */
   color-scheme: light dark;
 
   /* ── Surfaces: warm paper, cooler desk ─────────────────────────────────
      Authored in OKLCH so the ramp is perceptually even. GitHub's pastels go
      muddy the moment they sit on anything but pure white; these do not. */
-  --paper:       oklch(0.985 0.006 85);   /* the document — never #fff */
-  --desk:        oklch(0.960 0.005 85);   /* chrome around the paper */
-  --desk-sunk:   oklch(0.938 0.005 85);   /* file tree, rail */
-  --raised:      oklch(0.995 0.004 85);   /* cards sitting on the desk */
+  --paper:       light-dark(oklch(0.985 0.006 85), oklch(0.205 0.007 75));   /* the document — never #fff */
+  --desk:        light-dark(oklch(0.960 0.005 85), oklch(0.175 0.006 75));   /* chrome around the paper */
+  --desk-sunk:   light-dark(oklch(0.938 0.005 85), oklch(0.150 0.006 75));   /* file tree, rail */
+  --raised:      light-dark(oklch(0.995 0.004 85), oklch(0.235 0.007 75));   /* cards sitting on the desk */
 
-  /* ── Ink ───────────────────────────────────────────────────────────────── */
-  --ink-900:     oklch(0.255 0.012 265);  /* body — never #000 */
-  --ink-700:     oklch(0.410 0.010 265);
-  --ink-500:     oklch(0.505 0.009 265);  /* metadata — 4.5:1 on desk */
-  --ink-300:     oklch(0.740 0.006 265);  /* disabled */
+  /* ── Ink. On dark, ~11:1 rather than 21:1 — maximum contrast halates. ──── */
+  --ink-900:     light-dark(oklch(0.255 0.012 265), oklch(0.900 0.010 85));  /* body — never #000 */
+  --ink-700:     light-dark(oklch(0.410 0.010 265), oklch(0.760 0.010 85));
+  --ink-500:     light-dark(oklch(0.505 0.009 265), oklch(0.630 0.010 85));  /* metadata — 4.5:1 on desk */
+  --ink-300:     light-dark(oklch(0.740 0.006 265), oklch(0.470 0.008 85));  /* disabled */
 
   /* ── Accent: ochre. Not GitHub blue, not the violet of every AI template.
      Spent on exactly one thing: the comment you are working with. ───────── */
   /* Dark enough to pass AA as text: it is used for links inside the document,
      not only as a mark. */
-  --accent:        oklch(0.545 0.132 62);
-  --accent-hover:  oklch(0.480 0.130 62);
-  --accent-subtle: oklch(0.955 0.030 62);
-  --accent-ring:   oklch(0.545 0.132 62 / 0.38);
+  --accent:        light-dark(oklch(0.545 0.132 62), oklch(0.760 0.115 68));
+  --accent-hover:  light-dark(oklch(0.480 0.130 62), oklch(0.820 0.110 68));
+  --accent-subtle: light-dark(oklch(0.955 0.030 62), oklch(0.300 0.045 68));
+  --accent-ring:   light-dark(oklch(0.545 0.132 62 / 0.38), oklch(0.760 0.115 68 / 0.40));
 
   /* ── Semantic. Mark colours, never background washes. ─────────────────── */
-  --add:  oklch(0.500 0.110 152);
-  --del:  oklch(0.520 0.150 25);
-  --warn: oklch(0.640 0.120 85);
+  --add:  light-dark(oklch(0.500 0.110 152), oklch(0.720 0.140 152));
+  --del:  light-dark(oklch(0.520 0.150 25), oklch(0.700 0.150 25));
+  --warn: light-dark(oklch(0.640 0.120 85), oklch(0.780 0.120 85));
 
   /* ── Borders as alpha of the current ink, so they adapt to any surface ── */
   --border-subtle:  color-mix(in oklab, currentColor 9%, transparent);
@@ -132,53 +143,32 @@
 
   /* Hairline. An alpha of ink, so it sits correctly on paper, desk, or a card
      — a fixed grey only ever looks right on one of them. */
-  --line: color-mix(in oklab, var(--ink-900) 13%, transparent);
+  --line: color-mix(in oklab, var(--ink-900) light-dark(13%, 16%), transparent);
 
   /* Faint tints for banners and pending state. Never used behind body prose —
      see the proofreader's marks below for why. */
-  --add-wash: oklch(0.965 0.035 152);
-  --del-wash: oklch(0.965 0.040 25);
-  --changed:  oklch(0.968 0.040 85);
-  --pending:  oklch(0.972 0.035 62);
+  --add-wash: light-dark(oklch(0.965 0.035 152), oklch(0.270 0.045 152));
+  --del-wash: light-dark(oklch(0.965 0.040 25), oklch(0.270 0.050 25));
+  --changed:  light-dark(oklch(0.968 0.040 85), oklch(0.272 0.045 85));
+  --pending:  light-dark(oklch(0.972 0.035 62), oklch(0.278 0.040 62));
 
-  /* Paper grain, light mode only. 2.5% — past ~4% it degrades antialiasing. */
-  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  /* Paper grain, light only — on dark it reads as screen dirt.
+     2.5%; past ~4% it degrades antialiasing. */
+  --grain: light-dark(
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E"),
+    none
+  );
+
+  /* Dark bleeds optically at small sizes; a touch of tracking holds it open. */
+  --dark-tracking: light-dark(0.002em, 0.007em);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Warm, not blue-black. Warp's insight: a warm dark reads as a place; a
-       cool one reads as GitHub. Hue stays in the paper family. */
-    --paper:     oklch(0.205 0.007 75);
-    --desk:      oklch(0.175 0.006 75);
-    --desk-sunk: oklch(0.150 0.006 75);
-    --raised:    oklch(0.235 0.007 75);
-
-    /* ~11:1, not 21:1 — maximum contrast on dark causes halation. */
-    --ink-900:   oklch(0.900 0.010 85);
-    --ink-700:   oklch(0.760 0.010 85);
-    --ink-500:   oklch(0.630 0.010 85);
-    --ink-300:   oklch(0.470 0.008 85);
-
-    --accent:        oklch(0.760 0.115 68);
-    --accent-hover:  oklch(0.820 0.110 68);
-    --accent-subtle: oklch(0.300 0.045 68);
-    --accent-ring:   oklch(0.760 0.115 68 / 0.40);
-
-    --add:  oklch(0.720 0.140 152);
-    --del:  oklch(0.700 0.150 25);
-    --warn: oklch(0.780 0.120 85);
-
-    --line: color-mix(in oklab, var(--ink-900) 16%, transparent);
-
-    --add-wash: oklch(0.270 0.045 152);
-    --del-wash: oklch(0.270 0.050 25);
-    --changed:  oklch(0.272 0.045 85);
-    --pending:  oklch(0.278 0.040 62);
-
-    --grain: none;   /* on dark it reads as screen dirt */
-  }
-}
+/*
+ * The switch. Setting `color-scheme` is the whole mechanism: every token above resolves through
+ * it, so nothing else has to know which theme is active. No attribute means follow the system.
+ */
+:root[data-theme='light'] { color-scheme: light; }
+:root[data-theme='dark']  { color-scheme: dark; }
 
 * { box-sizing: border-box; }
 
@@ -188,7 +178,7 @@ body {
   color: var(--ink-900);
   font: var(--ui-base)/1.5 var(--font-ui);
   font-variant-numeric: tabular-nums;   /* counts and line numbers stop jittering */
-  letter-spacing: 0.002em;
+  letter-spacing: var(--dark-tracking);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -262,6 +252,8 @@ input, textarea {
 .banner { padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .banner.warn { background: var(--changed); }
 .banner.ok { background: var(--add-wash); }
+.tag.unsent-tag { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 40%, transparent); }
+.banner.note { background: var(--desk-sunk); display: flex; gap: 12px; align-items: baseline; justify-content: space-between; }
 .banner.pin { background: var(--desk-sunk); display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
 
 /* onboarding ---------------------------------------------------------------- */
@@ -480,6 +472,46 @@ input, textarea {
 .review-head { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--line); }
 .review-title { display: flex; flex-direction: column; flex: 1; }
 .modes { display: flex; gap: 4px; }
+
+/* theme switch --------------------------------------------------------------
+   A segmented control, sunk into the desk rather than raised off it: this is a
+   setting you touch twice a year, so it must not compete with the review
+   actions next to it. Selected reads as *ink*, not accent — the accent belongs
+   to the comment you are working with and nothing else. */
+.theme-switch {
+  display: inline-flex;
+  gap: 1px;
+  padding: 2px;
+  border-radius: var(--r-full);
+  background: var(--desk-sunk);
+  border: 1px solid var(--border-subtle);
+}
+.theme-opt {
+  display: grid;
+  place-items: center;
+  width: 22px; height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-full);
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--dur-instant) var(--ease), color var(--dur-instant) var(--ease);
+}
+.theme-opt:hover { color: var(--ink-900); }
+.theme-opt.on { background: var(--raised); color: var(--ink-900); box-shadow: 0 1px 2px rgb(0 0 0 / 0.10); }
+
+/* Visible to a screen reader, and to nobody else. The glyphs alone are not labels. */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 
 .review-body { display: grid; grid-template-columns: var(--tree-w) minmax(0, 1fr); flex: 1; min-height: 0; }
 .pane { overflow: auto; }
@@ -714,6 +746,22 @@ del[data-pilcrow-del] {
   background: var(--desk-sunk);
 }
 .review-foot input { flex: 1; }
+
+/*
+  The state that is easiest to misread: comments exist, and GitHub has not seen any of them.
+  Two lines, because "how many" and "where they are" are different questions.
+*/
+.unsent { display: flex; flex-direction: column; line-height: 1.3; white-space: nowrap; }
+.unsent strong { font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.unsent strong::before {
+  content: '';
+  display: inline-block;
+  width: 6px; height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  vertical-align: 1px;
+}
 
 .dash-lede {
   margin: 4px 0 20px;

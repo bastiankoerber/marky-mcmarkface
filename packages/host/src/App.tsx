@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, subscribe, type AuthStatus, type DashboardData, type Prefs } from './api.js';
 import { Loading } from './Loading.jsx';
+import { ThemeSwitch } from './ThemeSwitch.jsx';
+import { useTheme } from './theme.js';
 import { Connect } from './onboarding/Connect.jsx';
 import { Connected } from './onboarding/Connected.jsx';
 import { Dashboard } from './dashboard/Dashboard.jsx';
@@ -16,6 +18,7 @@ export function App() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [view, setView] = useState<View>(parseHash());
   const [celebrating, setCelebrating] = useState(false);
+  const { pref, theme, setPref } = useTheme();
 
   useEffect(() => {
     const onHash = () => setView(parseHash());
@@ -106,6 +109,7 @@ export function App() {
           <span className="brand-mark">¶</span> Pilcrow
         </button>
         <span className="spacer" />
+        <ThemeSwitch pref={pref} onChange={setPref} />
         {status.avatarUrl && <img className="avatar-sm" src={status.avatarUrl} alt="" />}
         <span className="muted small">@{status.login}</span>
         <button
@@ -131,6 +135,7 @@ export function App() {
           owner={view.owner}
           repo={view.repo}
           number={view.number}
+          theme={theme}
           onBack={() => navigate({ kind: 'dashboard' })}
         />
       ) : data ? (
