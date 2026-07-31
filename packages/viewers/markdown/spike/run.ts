@@ -27,6 +27,11 @@ import { describeRange, anchorRange, __internals } from '../src/anchoring.js';
 import { fetchCorpus, loadFixtures } from './corpus.js';
 
 const { closestStamp, precedingTextLength } = __internals;
+/*
+ * Public, Markdown-heavy repositories, so the gate runs for anyone with `gh` authenticated and
+ * nothing here names a private one. Pass `--repos owner/name` to grade against your own — that
+ * is the run that matters before a release, since real prose is where anchoring breaks.
+ */
 const DEFAULT_REPOS = ['github/docs', 'kubernetes/website'];
 
 function arg(name: string, fallback: string): string {

@@ -504,6 +504,18 @@ input, textarea {
 .theme-opt.on { background: var(--raised); color: var(--ink-900); box-shadow: 0 1px 2px rgb(0 0 0 / 0.10); }
 
 /* Visible to a screen reader, and to nobody else. The glyphs alone are not labels. */
+.command {
+  display: block;
+  margin: var(--sp-2) 0 var(--sp-4);
+  padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--desk-sunk);
+  font-family: var(--font-mono);
+  font-size: var(--ui-sm);
+  user-select: all;   /* one click selects the whole command */
+}
+
 .sr-only {
   position: absolute;
   width: 1px; height: 1px;
