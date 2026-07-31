@@ -3,6 +3,7 @@ import { api, subscribe, type AuthStatus, type DashboardData, type Prefs } from 
 import { Loading } from './Loading.jsx';
 import { ThemeSwitch } from './ThemeSwitch.jsx';
 import { useTheme } from './theme.js';
+import { clearAllDrafts } from './review/draftStore.js';
 import { Connect } from './onboarding/Connect.jsx';
 import { Connected } from './onboarding/Connected.jsx';
 import { Dashboard } from './dashboard/Dashboard.jsx';
@@ -116,6 +117,9 @@ export function App() {
           className="btn link small"
           onClick={async () => {
             await api.signOut();
+            // Unsent comments are prose about possibly-private pull requests. Signing out must
+            // take them with it, not just the token.
+            clearAllDrafts();
             setData(null);
             void loadStatus();
           }}
