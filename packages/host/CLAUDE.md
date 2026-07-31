@@ -66,13 +66,45 @@ the text being commented on.
 and `variant="inline"` inside an existing pane. It deliberately renders nothing for the first
 180ms so fast responses do not flash. Never write a bare "Loading…" string.
 
-## Design
+## Design — "Proof"
 
-The first-run screens live in `src/onboarding/`. The bar is Apple, not devtool:
+The mental model is a printed proof on a desk. The document is paper with book typography; the
+chrome is a quieter desk framing it; comments are marginalia; changes are proofreader's marks.
+It replaced a palette that was GitHub Primer copied verbatim, which made a product built to
+beat GitHub's diff view look exactly like it.
+
+**Four rules that hold the identity together. Breaking any one of them undoes it:**
+
+1. **The chrome face and the document face are different.** Public Sans 13.5px for UI,
+   Newsreader 18px/1.62 at a 68ch measure for the rendered Markdown. This split is the largest
+   perceptual difference in the whole design — larger than the palette. Never set the document
+   in the UI font.
+2. **The accent is spent on one thing: the mark you are working with.** Draft card, leader line,
+   focus ring, active highlight. Selected chrome — tabs, chips, the active file — is *ink*, not
+   accent. An accent that appears everywhere says nothing.
+3. **No background washes behind prose.** Diffs are a gutter change-bar, an underline for
+   additions, a strike for deletions. A pastel fill behind 18px serif hurts the exact thing this
+   app exists to make readable, and it is the loudest GitHub tell.
+4. **At most two raised surfaces.** The paper and the cards. If everything is elevated, nothing
+   reads as elevated.
+
+Light is the default deliberately: the positive-polarity reading advantage is well replicated
+and grows as type gets smaller. Dark is a first-class equal and is *warm* — a cool blue-black is
+precisely what we are avoiding. Grain is light-mode only; on dark it reads as screen dirt.
+
+Colour is authored in **OKLCH** so the ramp is perceptually even, and borders are
+`color-mix(in oklab, currentColor N%, transparent)` so a hairline sits correctly on paper, desk
+*and* card — a fixed grey only ever looks right on one of them.
+
+Onboarding still lives in `src/onboarding/`:
 
 - One primary button per screen. Everything else is progressive disclosure.
-- Copy names what is happening. Never a bare spinner.
-- Motion is 200–420ms, `ease-out`, and always disabled under `prefers-reduced-motion`.
+- Copy names what is happening. Never a bare spinner — use `Loading`.
+- Motion 120–320ms on `--ease`, always disabled under `prefers-reduced-motion`.
 - Empty states are sentences, not "No data".
+
+**Fonts are bundled and self-hosted** under `public/fonts/` so `font-src 'self'` holds and no CDN
+learns what you are reading. If you touch them, read `public/fonts/README.md` first — the OFL's
+Reserved Font Name clause is not decorative.
 
 `styles.css` holds the tokens. One accent colour; light and dark both defined.

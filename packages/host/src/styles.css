@@ -1,35 +1,182 @@
+/*
+ * Pilcrow — "Proof"
+ *
+ * The mental model is a printed proof on a desk, not a code diff. The document is paper with
+ * book typography; the chrome is a quieter desk framing it; comments are marginalia; changes are
+ * proofreader's marks. That direction comes from the domain — editing prose — rather than from a
+ * trend, which is why it reads as neither GitHub nor as a template.
+ *
+ * Light is the default on purpose. The positive-polarity reading advantage is well replicated
+ * and grows as type gets smaller, and every reading-first tool (Instapaper, iA Writer, Bear,
+ * Readwise) defaults to light. Dark is a first-class equal, and deliberately warm — a cool
+ * blue-black is exactly the thing we are trying not to look like.
+ */
+
+/* ── Typefaces ───────────────────────────────────────────────────────────────
+   Self-hosted so `font-src 'self'` holds and no CDN learns what you are reading.
+   See public/fonts/README.md for licences and the Reserved Font Name warning. */
+
+@font-face {
+  font-family: 'Public Sans';
+  src: url('/fonts/public-sans-roman.woff2') format('woff2-variations');
+  font-weight: 300 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Public Sans';
+  src: url('/fonts/public-sans-italic.woff2') format('woff2-variations');
+  font-weight: 300 800;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/fonts/newsreader-roman.woff2') format('woff2-variations');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Newsreader';
+  src: url('/fonts/newsreader-italic.woff2') format('woff2-variations');
+  font-weight: 300 700;
+  font-style: italic;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Commit Mono';
+  src: url('/fonts/commit-mono-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Metric-matched fallbacks so the swap does not shift layout. */
+@font-face {
+  font-family: 'Newsreader Fallback';
+  src: local('Georgia');
+  size-adjust: 103%;
+  ascent-override: 92%;
+  descent-override: 24%;
+}
+
 :root {
-  --bg: #ffffff;
-  --bg-soft: #f6f8fa;
-  --fg: #1f2328;
-  --muted: #656d76;
-  --line: #d1d9e0;
-  --accent: #0969da;
-  --add-bg: #dafbe1;
-  --add-fg: #1a7f37;
-  --del-bg: #ffebe9;
-  --del-fg: #cf222e;
-  --changed: #fff8c5;
-  --pending: #fff1e5;
-  --radius: 6px;
+  color-scheme: light dark;
+
+  /* ── Surfaces: warm paper, cooler desk ─────────────────────────────────
+     Authored in OKLCH so the ramp is perceptually even. GitHub's pastels go
+     muddy the moment they sit on anything but pure white; these do not. */
+  --paper:       oklch(0.985 0.006 85);   /* the document — never #fff */
+  --desk:        oklch(0.960 0.005 85);   /* chrome around the paper */
+  --desk-sunk:   oklch(0.938 0.005 85);   /* file tree, rail */
+  --raised:      oklch(0.995 0.004 85);   /* cards sitting on the desk */
+
+  /* ── Ink ───────────────────────────────────────────────────────────────── */
+  --ink-900:     oklch(0.255 0.012 265);  /* body — never #000 */
+  --ink-700:     oklch(0.410 0.010 265);
+  --ink-500:     oklch(0.505 0.009 265);  /* metadata — 4.5:1 on desk */
+  --ink-300:     oklch(0.740 0.006 265);  /* disabled */
+
+  /* ── Accent: ochre. Not GitHub blue, not the violet of every AI template.
+     Spent on exactly one thing: the comment you are working with. ───────── */
+  /* Dark enough to pass AA as text: it is used for links inside the document,
+     not only as a mark. */
+  --accent:        oklch(0.545 0.132 62);
+  --accent-hover:  oklch(0.480 0.130 62);
+  --accent-subtle: oklch(0.955 0.030 62);
+  --accent-ring:   oklch(0.545 0.132 62 / 0.38);
+
+  /* ── Semantic. Mark colours, never background washes. ─────────────────── */
+  --add:  oklch(0.500 0.110 152);
+  --del:  oklch(0.520 0.150 25);
+  --warn: oklch(0.640 0.120 85);
+
+  /* ── Borders as alpha of the current ink, so they adapt to any surface ── */
+  --border-subtle:  color-mix(in oklab, currentColor 9%, transparent);
+  --border-default: color-mix(in oklab, currentColor 15%, transparent);
+  --border-strong:  color-mix(in oklab, currentColor 26%, transparent);
+
+  /* ── Radius scale. Nested rule: inner = outer − padding. ───────────────── */
+  --r-xs: 3px;
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-full: 999px;
+
+  /* ── Spacing ───────────────────────────────────────────────────────────── */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
+
+  /* ── Type: the chrome face and the document face are different on purpose.
+     That split is the single largest perceptual change here — bigger than the
+     whole palette. Chrome disappears; the document is read for an hour. ──── */
+  --font-ui:   'Public Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-doc:  'Newsreader', 'Newsreader Fallback', Georgia, serif;
+  --font-mono: 'Commit Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --ui-xs: 11.5px; --ui-sm: 12.5px; --ui-base: 13.5px; --ui-lg: 15px;
+  --doc-size: 18px;
+  --doc-lh: 1.62;
+  --doc-measure: 68ch;   /* 66 is Bringhurst's optimum; 80 the a11y ceiling */
+
   --rail-w: 320px;
   --tree-w: 260px;
+
+  /* ── Motion ────────────────────────────────────────────────────────────── */
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-instant: 120ms;
+  --dur-fast: 180ms;
+  --dur-base: 240ms;
+  --dur-slow: 320ms;
+
+  /* Hairline. An alpha of ink, so it sits correctly on paper, desk, or a card
+     — a fixed grey only ever looks right on one of them. */
+  --line: color-mix(in oklab, var(--ink-900) 13%, transparent);
+
+  /* Faint tints for banners and pending state. Never used behind body prose —
+     see the proofreader's marks below for why. */
+  --add-wash: oklch(0.965 0.035 152);
+  --del-wash: oklch(0.965 0.040 25);
+  --changed:  oklch(0.968 0.040 85);
+  --pending:  oklch(0.972 0.035 62);
+
+  /* Paper grain, light mode only. 2.5% — past ~4% it degrades antialiasing. */
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0d1117;
-    --bg-soft: #161b22;
-    --fg: #e6edf3;
-    --muted: #8b949e;
-    --line: #30363d;
-    --accent: #4493f8;
-    --add-bg: #12261e;
-    --add-fg: #3fb950;
-    --del-bg: #25171c;
-    --del-fg: #f85149;
-    --changed: #272115;
-    --pending: #2a1f14;
+    /* Warm, not blue-black. Warp's insight: a warm dark reads as a place; a
+       cool one reads as GitHub. Hue stays in the paper family. */
+    --paper:     oklch(0.205 0.007 75);
+    --desk:      oklch(0.175 0.006 75);
+    --desk-sunk: oklch(0.150 0.006 75);
+    --raised:    oklch(0.235 0.007 75);
+
+    /* ~11:1, not 21:1 — maximum contrast on dark causes halation. */
+    --ink-900:   oklch(0.900 0.010 85);
+    --ink-700:   oklch(0.760 0.010 85);
+    --ink-500:   oklch(0.630 0.010 85);
+    --ink-300:   oklch(0.470 0.008 85);
+
+    --accent:        oklch(0.760 0.115 68);
+    --accent-hover:  oklch(0.820 0.110 68);
+    --accent-subtle: oklch(0.300 0.045 68);
+    --accent-ring:   oklch(0.760 0.115 68 / 0.40);
+
+    --add:  oklch(0.720 0.140 152);
+    --del:  oklch(0.700 0.150 25);
+    --warn: oklch(0.780 0.120 85);
+
+    --line: color-mix(in oklab, var(--ink-900) 16%, transparent);
+
+    --add-wash: oklch(0.270 0.045 152);
+    --del-wash: oklch(0.270 0.050 25);
+    --changed:  oklch(0.272 0.045 85);
+    --pending:  oklch(0.278 0.040 62);
+
+    --grain: none;   /* on dark it reads as screen dirt */
   }
 }
 
@@ -37,17 +184,20 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--fg);
-  font: 14px/1.55 -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+  background: var(--desk);
+  color: var(--ink-900);
+  font: var(--ui-base)/1.5 var(--font-ui);
+  font-variant-numeric: tabular-nums;   /* counts and line numbers stop jittering */
+  letter-spacing: 0.002em;
+  -webkit-font-smoothing: antialiased;
 }
 
-.muted { color: var(--muted); }
-.small { font-size: 12px; }
-.tiny { font-size: 11px; }
-.error { color: var(--del-fg); }
-.add { color: var(--add-fg); }
-.del { color: var(--del-fg); }
+.muted { color: var(--ink-500); }
+.small { font-size: var(--ui-sm); }
+.tiny { font-size: var(--ui-xs); }
+.error { color: var(--del); }
+.add { color: var(--add); }
+.del { color: var(--del); }
 .spacer { flex: 1; }
 
 /* buttons ------------------------------------------------------------------ */
@@ -56,48 +206,63 @@ body {
   font: inherit;
   padding: 5px 12px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-soft);
-  color: var(--fg);
+  border-radius: var(--r-sm);
+  background: var(--desk-sunk);
+  color: var(--ink-900);
   cursor: pointer;
 }
-.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn:hover:not(:disabled) { border-color: var(--border-strong); background: var(--raised); }
 .btn:disabled { opacity: 0.5; cursor: default; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.danger { color: var(--del-fg); }
+/* Ink on paper, not accent-coloured — the Vercel/Raycast move. Reserving the
+   accent for "here is the mark" is what makes it mean something. */
+.btn.primary {
+  background: var(--ink-900);
+  border-color: var(--ink-900);
+  color: var(--paper);
+}
+.btn.primary:hover:not(:disabled) { background: var(--ink-700); border-color: var(--ink-700); }
+.btn.danger { color: var(--del); }
 .btn.link { background: none; border: none; color: var(--accent); padding: 2px 4px; }
 .btn.small { padding: 3px 9px; font-size: 12px; }
 .btn.tiny { padding: 2px 7px; font-size: 11px; }
-.btn.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Selected chrome is ink, not accent. Spending the accent here would dilute the
+   one thing it is meant to say: "this is the mark you are working with". */
+.btn.on { background: var(--ink-900); border-color: var(--ink-900); color: var(--paper); }
+
+:where(a, button, [role='button'], input, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
 
 input, textarea {
   font: inherit;
   padding: 6px 9px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--fg);
+  border-radius: var(--r-sm);
+  background: var(--desk);
+  color: var(--ink-900);
   width: 100%;
 }
 
 /* shell -------------------------------------------------------------------- */
 
-.boot, .review.loading { padding: 48px; color: var(--muted); }
+.boot, .review.loading { padding: 48px; color: var(--ink-500); }
 
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
   border-bottom: 1px solid var(--line);
-  background: var(--bg-soft);
+  background: var(--desk);
 }
-.brand { font-weight: 700; background: none; border: none; color: var(--fg); font-size: 15px; cursor: pointer; }
+.brand { font-weight: 700; background: none; border: none; color: var(--ink-900); font-size: 15px; cursor: pointer; }
 
 .banner { padding: 10px 16px; border-bottom: 1px solid var(--line); }
 .banner.warn { background: var(--changed); }
-.banner.ok { background: var(--add-bg); }
-.banner.pin { background: var(--bg-soft); display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
+.banner.ok { background: var(--add-wash); }
+.banner.pin { background: var(--desk-sunk); display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; }
 
 /* onboarding ---------------------------------------------------------------- */
 
@@ -130,7 +295,7 @@ input, textarea {
   font-size: 64px;
   line-height: 1;
   font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  color: var(--fg);
+  color: var(--ink-900);
   opacity: 0.9;
 }
 .mark.breathing { animation: breathe 2.4s ease-in-out infinite; }
@@ -147,14 +312,14 @@ input, textarea {
   letter-spacing: -0.02em;
 }
 
-.lede { margin: 0; color: var(--muted); font-size: 15px; max-width: 34ch; }
-.status-line { margin: 0; color: var(--muted); font-size: 13px; }
-.failure { margin: 0; color: var(--del-fg); font-size: 13px; max-width: 40ch; }
+.lede { margin: 0; color: var(--ink-500); font-size: 15px; max-width: 34ch; }
+.status-line { margin: 0; color: var(--ink-500); font-size: 13px; }
+.failure { margin: 0; color: var(--del); font-size: 13px; max-width: 40ch; }
 
 .btn.large { padding: 9px 20px; font-size: 15px; border-radius: 8px; margin-top: 8px; }
 
 .quiet-links { display: flex; gap: 16px; margin-top: 12px; }
-.quiet-links .btn.link { font-size: 12px; color: var(--muted); }
+.quiet-links .btn.link { font-size: 12px; color: var(--ink-500); }
 .quiet-links .btn.link:hover { color: var(--accent); }
 
 .disclosure {
@@ -164,7 +329,7 @@ input, textarea {
   margin-top: 4px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--bg-soft);
+  background: var(--desk-sunk);
   font-size: 13px;
   animation: settle 220ms ease-out;
 }
@@ -185,7 +350,7 @@ input, textarea {
 .setup li { margin-bottom: 12px; }
 .setup li .muted { display: block; margin-top: 4px; }
 .setup pre {
-  background: var(--bg-soft);
+  background: var(--desk-sunk);
   border: 1px solid var(--line);
   border-radius: 6px;
   padding: 8px 10px;
@@ -202,7 +367,7 @@ input, textarea {
   padding: 14px 18px 14px 24px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--bg-soft);
+  background: var(--desk-sunk);
   user-select: all;
 }
 
@@ -248,17 +413,17 @@ input, textarea {
   padding: 3px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--desk);
+  color: var(--ink-900);
   cursor: pointer;
 }
-.chip.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+.chip.on { background: var(--ink-900); border-color: var(--ink-900); color: var(--paper); }
 .chip-count { opacity: 0.6; }
 .toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .toggle input { width: auto; }
 
 .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-.col h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.col h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-500); }
 
 .pr {
   display: block;
@@ -267,24 +432,24 @@ input, textarea {
   padding: 10px 12px;
   margin-bottom: 8px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--fg);
+  border-radius: var(--r-sm);
+  background: var(--desk);
+  color: var(--ink-900);
   cursor: pointer;
   font: inherit;
 }
 .pr:hover { border-color: var(--accent); }
-.pr-head { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.pr-head { display: flex; gap: 6px; align-items: center; font-size: 12px; color: var(--ink-500); }
 .pr-title { font-weight: 600; margin: 2px 0; }
 .tag {
   font-size: 10px;
   text-transform: uppercase;
   padding: 1px 6px;
   border-radius: 999px;
-  background: var(--bg-soft);
+  background: var(--desk-sunk);
   border: 1px solid var(--line);
 }
-.tag.md { background: var(--add-bg); color: var(--add-fg); border-color: transparent; }
+.tag.md { background: var(--add-wash); color: var(--add); border-color: transparent; }
 
 .activity {
   display: flex;
@@ -297,13 +462,13 @@ input, textarea {
   border: 1px solid transparent;
   border-left: 3px solid var(--line);
   background: none;
-  color: var(--fg);
+  color: var(--ink-900);
   font: inherit;
   cursor: pointer;
 }
 .activity.unread { border-left-color: var(--accent); }
-.activity:hover { background: var(--bg-soft); }
-.reason { font-size: 10px; text-transform: uppercase; color: var(--muted); }
+.activity:hover { background: var(--desk-sunk); }
+.reason { font-size: 10px; text-transform: uppercase; color: var(--ink-500); }
 .activity-title { font-weight: 500; }
 .rate { margin-top: 24px; }
 
@@ -318,7 +483,7 @@ input, textarea {
 
 .review-body { display: grid; grid-template-columns: var(--tree-w) minmax(0, 1fr); flex: 1; min-height: 0; }
 .pane { overflow: auto; }
-.tree-pane { border-right: 1px solid var(--line); background: var(--bg-soft); overflow: auto; }
+.tree-pane { border-right: 1px solid var(--line); background: var(--desk); overflow: auto; }
 
 /*
  * The document and its margin are one unit.
@@ -337,44 +502,152 @@ input, textarea {
   overflow: auto;
   min-height: 0;
 }
-.doc-pane { padding: 24px 32px; min-width: 0; }
-.rail-pane { border-left: 1px solid var(--line); position: relative; }
+/*
+ * The paper.
+ *
+ * A real physical relationship to the desk: hairline, a lit top edge, a tight
+ * contact shadow and a wide ambient one. Four layers, and this is one of only
+ * two raised surfaces in the app — if everything is raised, nothing is.
+ */
+.doc-pane {
+  min-width: 0;
+  padding: var(--sp-6) var(--sp-6) var(--sp-7);
+  margin: var(--sp-4) 0 var(--sp-4) var(--sp-4);
+  background: var(--paper);
+  border-radius: var(--r-lg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 55%, transparent),
+    0 0 0 1px var(--line),
+    0 1px 3px -1px oklch(0 0 0 / 0.05),
+    0 14px 34px -18px oklch(0 0 0 / 0.11);
+}
+/* Grain goes on the paper only, and only in light mode. */
+.doc-pane::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background-image: var(--grain);
+  opacity: 0.025;
+  mix-blend-mode: multiply;
+}
+.doc-pane { position: relative; }
+/* The margin is desk, not paper — marginalia sit beside the page. */
+.rail-pane { position: relative; padding-left: var(--sp-3); }
 
-.tree-head { padding: 8px 12px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
-.tree-dir { font-size: 12px; color: var(--muted); padding: 4px 0; }
+.tree-head { padding: 8px 12px; font-size: 12px; color: var(--ink-500); border-bottom: 1px solid var(--line); }
+.tree-dir { font-size: 12px; color: var(--ink-500); padding: 4px 0; }
 .tree-file { display: flex; align-items: center; gap: 6px; padding: 3px 8px; font-size: 13px; }
-.tree-file:hover { background: var(--bg); }
-.tree-file.on { background: var(--bg); box-shadow: inset 2px 0 0 var(--accent); }
+.tree-file:hover { background: var(--desk); }
+.tree-file.on { background: var(--paper); box-shadow: inset 2px 0 0 var(--ink-900); }
 .tree-file.viewed .tree-name { opacity: 0.5; text-decoration: line-through; }
 .tree-file input { width: auto; }
 .tree-name { flex: 1; text-align: left; background: none; border: none; color: inherit; font: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tree-badge { font-size: 11px; background: var(--accent); color: #fff; border-radius: 999px; padding: 0 6px; }
+.tree-badge { font-size: var(--ui-xs); background: var(--accent); color: var(--paper); border-radius: var(--r-full); padding: 0 6px; }
 .tree-stat { font-size: 11px; display: flex; gap: 4px; }
 
 /* rendered markdown -------------------------------------------------------- */
 
 /* A comfortable measure. Extra width becomes margin, never longer lines. */
-.md-body { max-width: 78ch; }
+/*
+ * The document is set as a page, not as UI. This split — a chrome face that
+ * disappears and a document face read for an hour — is the single largest
+ * perceptual change in this redesign, larger than the whole palette.
+ */
+.md-body {
+  max-width: var(--doc-measure);
+  font-family: var(--font-doc);
+  font-size: var(--doc-size);
+  line-height: var(--doc-lh);
+  font-variant-numeric: oldstyle-nums proportional-nums;
+  letter-spacing: 0;
+  color: var(--ink-900);
+  text-rendering: optimizeLegibility;
+}
 .md-body h1, .md-body h2, .md-body h3 { margin: 1.4em 0 0.5em; line-height: 1.25; }
-.md-body h1 { font-size: 26px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
-.md-body h2 { font-size: 20px; border-bottom: 1px solid var(--line); padding-bottom: 5px; }
+/* Newsreader's optical-size axis gives real editorial hierarchy from one file:
+   display cuts for headings, text cut for body. No rules under headings — that
+   is a GitHub habit, and it chops the page into boxes. */
+.md-body h1 { font-size: 2.05em; font-variation-settings: 'opsz' 48; font-weight: 600; letter-spacing: -0.015em; }
+.md-body h2 { font-size: 1.5em;  font-variation-settings: 'opsz' 32; font-weight: 600; letter-spacing: -0.01em; }
+.md-body h3 { font-size: 1.2em;  font-variation-settings: 'opsz' 24; font-weight: 600; }
+.md-body { font-variation-settings: 'opsz' 16; }
+.md-body p { hanging-punctuation: first last; }
 .md-body p, .md-body ul, .md-body ol, .md-body blockquote, .md-body table { margin: 0 0 1em; }
-.md-body code { background: var(--bg-soft); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
-.md-body pre { background: var(--bg-soft); padding: 12px 14px; border-radius: var(--radius); overflow-x: auto; }
+.md-body code {
+  background: color-mix(in oklab, var(--ink-900) 5%, transparent);
+  padding: 0.1em 0.35em;
+  border-radius: var(--r-xs);
+  font-family: var(--font-mono);
+  font-size: 0.855em;   /* Commit Mono runs large next to Newsreader */
+}
+.md-body pre {
+  background: color-mix(in oklab, var(--ink-900) 4%, transparent);
+  border: 1px solid var(--line);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md);
+  overflow-x: auto;
+  font-size: 0.855em;
+  line-height: 1.55;
+}
 .md-body pre code { background: none; padding: 0; }
-.md-body blockquote { border-left: 3px solid var(--line); padding-left: 14px; color: var(--muted); }
+.md-body blockquote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: var(--sp-4);
+  margin-left: 0;
+  color: var(--ink-700);
+  font-style: italic;
+}
 .md-body table { border-collapse: collapse; display: block; overflow-x: auto; }
 .md-body td, .md-body th { border: 1px solid var(--line); padding: 5px 11px; }
 .md-body a { color: var(--accent); }
 .md-body img { max-width: 100%; }
 
-/* rich diff marks */
-[data-pilcrow-change] { border-left: 3px solid transparent; padding-left: 10px; margin-left: -13px; }
-[data-pilcrow-change='added'] { border-left-color: var(--add-fg); background: var(--add-bg); }
-[data-pilcrow-change='changed'] { border-left-color: #d4a72c; background: var(--changed); }
-[data-pilcrow-change='removed'] { border-left-color: var(--del-fg); background: var(--del-bg); }
-ins[data-pilcrow-ins] { background: var(--add-bg); color: var(--add-fg); text-decoration: none; }
-del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity: 0.8; }
+/*
+ * Proofreader's marks, not diff blocks.
+ *
+ * GitHub's pastel fills were the loudest remaining tell, and they are actively
+ * bad here: a wash behind serif prose at 18px hurts the thing this app exists to
+ * make readable. An editor marking a printed proof uses a bar in the gutter, an
+ * underline for an insertion and a rule through a deletion — so we do that.
+ * Green and red stay, as mark colour rather than background.
+ */
+[data-pilcrow-change] {
+  position: relative;
+  padding-left: var(--sp-4);
+  margin-left: calc(var(--sp-4) * -1);
+}
+[data-pilcrow-change]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.15em;
+  bottom: 0.15em;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--border-strong);
+}
+[data-pilcrow-change='added']::before   { background: var(--add); }
+[data-pilcrow-change='changed']::before { background: var(--warn); }
+[data-pilcrow-change='removed']::before { background: var(--del); }
+[data-pilcrow-change='removed'] { opacity: 0.62; }
+
+ins[data-pilcrow-ins] {
+  text-decoration: underline 2px var(--add);
+  text-underline-offset: 0.22em;
+  text-decoration-skip-ink: none;
+  background: none;
+  color: inherit;
+}
+del[data-pilcrow-del] {
+  text-decoration: line-through 1.5px var(--del);
+  background: none;
+  color: color-mix(in oklab, var(--ink-900) 55%, transparent);
+}
+
+/* The passage a comment refers to: a pencil mark, nothing more. */
+.md-body ::selection { background: var(--accent-subtle); }
 
 ::selection { background: rgba(84, 174, 255, 0.4); }
 
@@ -382,10 +655,10 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
 
 .srcdiff { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
 .srcdiff-row { display: flex; white-space: pre; }
-.srcdiff-row.srcdiff-add { background: var(--add-bg); }
-.srcdiff-row.srcdiff-del { background: var(--del-bg); }
-.srcdiff-num { width: 42px; text-align: right; padding-right: 8px; color: var(--muted); user-select: none; flex: none; }
-.srcdiff-mark { width: 16px; flex: none; color: var(--muted); }
+.srcdiff-row.srcdiff-add { background: var(--add-wash); }
+.srcdiff-row.srcdiff-del { background: var(--del-wash); }
+.srcdiff-num { width: 42px; text-align: right; padding-right: 8px; color: var(--ink-500); user-select: none; flex: none; }
+.srcdiff-mark { width: 16px; flex: none; color: var(--ink-500); }
 .srcdiff-text { flex: 1; }
 
 /* comment rail ------------------------------------------------------------- */
@@ -398,19 +671,33 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   right: 10px;
   padding: 9px 11px;
   border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border-radius: var(--r-sm);
+  background: var(--desk);
   font-size: 13px;
   cursor: pointer;
   transition: top 0.15s ease;
 }
-.card.pending { background: var(--pending); border-color: #d4a72c; }
-.card.draft { border-color: var(--accent); box-shadow: 0 4px 16px rgb(0 0 0 / 0.14); cursor: default; z-index: 2; }
+.card.pending { background: var(--pending); border-color: color-mix(in oklab, var(--accent) 50%, transparent); }
+/* The card you are writing in — the one place the accent is spent in full. */
+.card.draft {
+  box-shadow:
+    inset 0 1px 0 color-mix(in oklab, white 45%, transparent),
+    0 0 0 1px var(--accent),
+    0 0 0 4px var(--accent-ring),
+    0 10px 28px -14px oklch(0 0 0 / 0.18);
+  cursor: default;
+  z-index: 2;
+  animation: card-in var(--dur-base) var(--ease) both;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(4px) scale(0.99); }
+  to   { opacity: 1; transform: none; }
+}
 .card.draft blockquote { border-left-color: var(--accent); }
 .card.resolved { opacity: 0.55; }
 .card.outdated { border-style: dashed; }
 .card header { display: flex; gap: 6px; align-items: center; margin-bottom: 5px; }
-.card blockquote { margin: 0 0 6px; padding-left: 8px; border-left: 2px solid var(--line); color: var(--muted); font-size: 12px; max-height: 3.2em; overflow: hidden; }
+.card blockquote { margin: 0 0 6px; padding-left: 8px; border-left: 2px solid var(--line); color: var(--ink-500); font-size: 12px; max-height: 3.2em; overflow: hidden; }
 .card p { margin: 0 0 6px; }
 .card textarea { margin-top: 4px; }
 .card-actions { display: flex; gap: 6px; margin-top: 4px; }
@@ -424,7 +711,7 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   gap: 10px;
   padding: 8px 16px;
   border-top: 1px solid var(--line);
-  background: var(--bg-soft);
+  background: var(--desk-sunk);
 }
 .review-foot input { flex: 1; }
 
@@ -470,9 +757,9 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   border: 1px solid var(--line);
   border-radius: 999px;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--desk);
 }
-.chip-group.on { border-color: var(--accent); }
+.chip-group.on { border-color: var(--ink-900); }
 .chip-pin {
   font: inherit;
   font-size: 12px;
@@ -480,13 +767,13 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
   padding: 3px 4px 3px 9px;
   border: none;
   background: none;
-  color: var(--muted);
+  color: var(--ink-500);
   cursor: pointer;
 }
-.chip-pin[aria-pressed='true'] { color: #d4a72c; }
+.chip-pin[aria-pressed='true'] { color: var(--accent); }
 .chip-pin:hover { color: var(--accent); }
 .chip-group .chip.chip-filter { border: none; border-radius: 0; padding-left: 4px; background: none; }
-.chip-group.on .chip.chip-filter { background: var(--accent); color: #fff; }
+.chip-group.on .chip.chip-filter { background: var(--ink-900); color: var(--paper); }
 
 /* Draft card: the note explaining a file-level fallback. */
 .card .note { margin: 0 0 6px; }
@@ -506,8 +793,8 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
 .loading-page { min-height: 60vh; padding: 48px 24px; }
 .loading-inline { padding: 48px 24px; }
 
-.loading-line { margin: 0; font-size: 14px; color: var(--fg); }
-.loading-slow { margin: 0; font-size: 12px; color: var(--muted); max-width: 34ch; animation: settle 240ms ease-out; }
+.loading-line { margin: 0; font-size: 14px; color: var(--ink-900); }
+.loading-slow { margin: 0; font-size: 12px; color: var(--ink-500); max-width: 34ch; animation: settle 240ms ease-out; }
 
 .loading-mark { color: var(--accent); overflow: visible; }
 .loading-stroke {
@@ -533,6 +820,30 @@ del[data-pilcrow-del] { background: var(--del-bg); color: var(--del-fg); opacity
 }
 
 /* Outdated threads: a list, not positions — they have no line in this version of the file. */
-.rail-archive { position: relative; z-index: 1; padding: 10px 10px 14px; border-bottom: 1px solid var(--line); background: var(--bg); }
+.rail-archive { position: relative; z-index: 1; padding: 10px 10px 14px; border-bottom: 1px solid var(--line); background: var(--desk); }
 .rail-archive .muted.tiny { margin: 4px 0 8px; }
 .card.archived { position: static; margin-bottom: 8px; opacity: 0.75; cursor: default; }
+
+/* ── Marginalia ──────────────────────────────────────────────────────────────
+   `[` and `]` collapse the tree and the margin. With both gone the screen is
+   just the page, which is the whole point of rendering it as one. */
+
+.review.no-tree .tree-pane { display: none; }
+.review.no-tree .review-body { grid-template-columns: minmax(0, 1fr); }
+.review.no-rail .rail-pane { display: none; }
+.review.no-rail .reading-area { grid-template-columns: minmax(0, 1fr); }
+
+/* The leader line: a thin accent rule tying a card back to its passage, the way
+   a proofreader draws from a mark out to the margin. */
+.card::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--sp-3) * -1);
+  top: 1.05em;
+  width: var(--sp-3);
+  height: 1px;
+  background: var(--border-strong);
+}
+.card.draft::before,
+.card.pending::before { background: var(--accent); }
+.card.archived::before { display: none; }
