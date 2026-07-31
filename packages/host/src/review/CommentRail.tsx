@@ -162,6 +162,23 @@ type CardRef = (el: HTMLElement | null) => void;
 
 function DraftCard({ card, top, innerRef }: { card: RailDraft; top: number; innerRef: CardRef }) {
   const where = card.startLine === card.line ? `line ${card.line}` : `lines ${card.startLine}–${card.line}`;
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  /*
+   * Put the cursor in the box on every new selection, so highlighting a passage and typing is
+   * one motion.
+   *
+   * `autoFocus` is not enough: it only fires on mount, and this card keeps a stable key, so
+   * selecting a second passage while the draft is still open updates the props without
+   * remounting — leaving the cursor wherever it was. Keying the effect on the anchor covers
+   * both the first selection and every re-selection after it.
+   */
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [card.startLine, card.line, card.quote]);
 
   return (
     <article ref={innerRef} className="card draft" style={{ top }}>
@@ -181,7 +198,7 @@ function DraftCard({ card, top, innerRef }: { card: RailDraft; top: number; inne
       )}
 
       <textarea
-        autoFocus
+        ref={inputRef}
         rows={3}
         placeholder={card.commentable ? `Comment on ${where}…` : 'Comment on this file…'}
         value={card.body}
