@@ -27,9 +27,12 @@ no Pilcrow server and nothing leaves your Mac except calls to GitHub.
 
 ## What it does
 
-**Reads like a document.** Changed paragraphs are marked in the margin, inserted words are
-highlighted inline and deleted ones struck through — tracked changes, not a diff. Toggle to
-*Final* for the clean read, or *Source* when you need to see the raw hunks.
+**Reads like a document.** The page is set in Newsreader at a book measure on warm paper, not in
+UI font at 14px. Changes are marked the way an editor marks a printed proof — a change bar in
+the margin, insertions underlined, deletions struck through — rather than as pastel diff blocks,
+which hurt readability behind prose. Toggle to *Final* for the clean read, or *Source* for the
+raw hunks. `[` and `]` collapse the file tree and the margin; with both hidden it is just the
+page.
 
 **Comment on prose, not on lines.** Select any passage and write a note. Pilcrow works out which
 source lines you meant and posts a normal GitHub review comment there. Existing threads appear

@@ -42,6 +42,10 @@ export function Review({
   const [activePath, setActivePath] = useState<string | null>(null);
   const [mode, setMode] = useState<Mode>('rich');
   const [viewed, setViewed] = useState<Set<string>>(new Set());
+  // `[` and `]` collapse the tree and the rail, the way Readwise Reader does it.
+  // With both hidden the document becomes pure marginalia — just the page.
+  const [showTree, setShowTree] = useState(true);
+  const [showRail, setShowRail] = useState(true);
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [draftBody, setDraftBody] = useState('');
@@ -71,6 +75,19 @@ export function Review({
       live = false;
     };
   }, [owner, repo, number]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      // Never steal the key while someone is writing a comment.
+      const el = e.target as HTMLElement | null;
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === '[') setShowTree((v) => !v);
+      if (e.key === ']') setShowRail((v) => !v);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const file = pr?.files.find((f) => f.path === activePath) ?? null;
   const headSource = file?.head ?? '';
@@ -241,7 +258,7 @@ export function Review({
 
   if (error) {
     return (
-      <div className="review">
+      <div className={`review ${showTree ? "" : "no-tree"} ${showRail ? "" : "no-rail"}`}>
         <div className="banner warn">{error}</div>
         <button className="btn" onClick={onBack}>
           Back
