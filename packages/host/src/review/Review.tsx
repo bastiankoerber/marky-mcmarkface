@@ -192,8 +192,6 @@ export function Review({
     const impl = anchoringRef.current;
     const container = impl?.contentContainer();
     const scroller = container?.closest('[data-pilcrow-scroll]') ?? null;
-    const scrollerTop = scroller?.getBoundingClientRect().top ?? 0;
-    const scrolled = scroller?.scrollTop ?? 0;
 
     /*
      * Where a card sits, in the scroll container's own content space.
@@ -202,18 +200,21 @@ export function Review({
      * coordinate origin is the top of the scrolled content — measuring from the document
      * instead put every card a constant ~66px too high, the document's padding.
      *
-     * The scroller's own rect does not move when it scrolls, so `scrollTop` has to be added
-     * back to land in content space. Cards then stay pinned to their paragraphs at any scroll
-     * position, which they did not do when the document and rail were separate scrollers: the
-     * offset was right, but it was being applied in a coordinate space that never moved.
+     * `scrollTop` and the scroller's rect are read **inside** this function, on purpose. They
+     * used to be hoisted into the enclosing memo, which meant they froze at whatever the scroll
+     * position was when the memo last ran. Selecting text does not invalidate that memo, so a
+     * reader who scrolled down and then highlighted a phrase got a card placed using the *old*
+     * scroll offset against a *current* rect — landing it exactly `scrollTop` pixels away, on
+     * some unrelated paragraph. Read them live and the two always agree.
      */
     const topFor = (line: number): number => {
-      if (!impl || !headSource) return line * 22;
+      if (!impl || !headSource || !scroller) return line * 22;
       const offset = lineOffset(headSource, line);
       const anchored = impl.anchor({ side: 'RIGHT', start: offset, end: offset + 1 });
       if (!anchored) return line * 22;
       const rect = 'getBoundingClientRect' in anchored ? anchored.getBoundingClientRect() : null;
-      return rect ? rect.top - scrollerTop + scrolled : line * 22;
+      if (!rect) return line * 22;
+      return rect.top - scroller.getBoundingClientRect().top + scroller.scrollTop;
     };
 
     return {

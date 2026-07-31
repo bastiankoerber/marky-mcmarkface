@@ -43,6 +43,13 @@ Card positions are computed in that scroller's content space:
 `rect.top - scrollerRect.top + scrollTop`. Measuring from the rendered document instead puts
 every card a constant ~66px too high — that is the document's own padding.
 
+**Read `scrollTop` and the scroller's rect *inside* `topFor`, never hoisted into the enclosing
+`useMemo`.** Hoisting them freezes the scroll offset at whatever it was when the memo last ran.
+Selecting text does not invalidate that memo, so a reader who scrolled down and then highlighted
+a phrase got a card positioned with the *stale* offset against a *current* rect — placing it
+exactly `scrollTop` pixels away, beside an unrelated paragraph. Measured at −900px after a 900px
+scroll. The rect and the scroll offset must be sampled together or they disagree.
+
 **6. `.dash` needs an explicit `width: 100%`.**
 
 Auto inline margins on a flex item disable cross-axis stretch, so `max-width` + `margin-inline:
