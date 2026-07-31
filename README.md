@@ -56,20 +56,23 @@ unchanged prose says so instead of letting you write a comment that gets rejecte
 
 ## Connecting
 
-**This repository does not ship a GitHub client ID yet**, so the one-click browser flow is not
-available on a fresh clone. In order of least effort:
+Pilcrow needs no setup and registers nothing. If you have the GitHub CLI authenticated —
+`gh auth status` — the first screen offers **Continue as @you** and that is the whole flow. It
+reuses the authorisation you already granted `gh`; no app to create, no codes to type, no
+credentials to paste.
 
-1. **GitHub CLI** — if `gh` is authenticated, the first screen offers *Continue as @you*. Nothing
-   to configure. This is the path to use today.
-2. **Register once** — the setup screen walks through creating an OAuth app and pasting the
-   client ID back into the app. One minute, once per machine. Supply a client secret too and
-   sign-in becomes one click with no codes; leave it out and Pilcrow uses device codes, which
-   need no secret.
-3. **Paste a token** — for GitHub Enterprise Server, or orgs that block OAuth apps.
+If `gh` is not set up, or your org blocks it, two other ways in:
 
-Once a maintainer registers the project's own app and commits its client ID to
-`BUNDLED_CLIENT_ID` in `packages/server/src/auth/oauth.ts`, everyone gets (1) with no setup —
-which is what `gh` and VS Code do with their own IDs.
+- **Paste a fine-grained token** — good for GitHub Enterprise Server, or orgs that do not permit
+  OAuth apps. Needs *Pull requests: read and write* on the repositories you review.
+- **Register your own OAuth app** — optional, and only worth it if you want the browser sign-in
+  button instead of the CLI. The setup screen walks through it and takes about a minute; supply a
+  client secret and sign-in is one click, leave it out and Pilcrow uses device codes.
+
+A fork can commit its own client ID to `BUNDLED_CLIENT_ID` in
+`packages/server/src/auth/oauth.ts`, which is what `gh` and VS Code do with theirs — but nobody
+has to, and this repository deliberately ships it empty rather than embedding credentials that
+would then belong to whoever cloned it.
 
 Pilcrow requests `repo` and `read:org` — the minimum GitHub offers, since classic OAuth has no
 read-only private scope and posting reviews requires write. Your token goes into the macOS

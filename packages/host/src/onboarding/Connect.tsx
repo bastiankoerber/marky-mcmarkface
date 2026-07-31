@@ -73,8 +73,31 @@ export function Connect({
             <button className="btn primary large" onClick={() => void run(api.connectGh)}>
               Continue as @{status.gh.login}
             </button>
+            {/*
+              Not "set up one-click sign-in". This *is* the finished path — it reuses an
+              authorisation you already granted, with nothing to register. Calling the secondary
+              option "set up" implied the primary one was a stopgap.
+            */}
             <button className="btn link" onClick={() => setPhase('bootstrap')}>
-              Set up one-click sign-in
+              Use a browser sign-in instead
+            </button>
+          </>
+        ) : status.gh.available ? (
+          /*
+             `gh` is installed but signed out. One command fixes that, and it is a far smaller
+             ask than registering an OAuth application — which is where this branch used to send
+             people, because it only checked `loggedIn`.
+          */
+          <>
+            <p className="status-line">
+              The GitHub CLI is installed but signed out. Run this, then come back:
+            </p>
+            <code className="command">gh auth login</code>
+            <button className="btn primary large" onClick={onConnected}>
+              I've signed in
+            </button>
+            <button className="btn link" onClick={() => setPhase('bootstrap')}>
+              Connect without the CLI
             </button>
           </>
         ) : (
