@@ -20,6 +20,9 @@
     "vitest": "^2.1.8"
   },
   "pnpm": {
-    "onlyBuiltDependencies": []
+    "onlyBuiltDependencies": [],
+    "ignoredBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
