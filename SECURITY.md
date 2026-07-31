@@ -73,6 +73,21 @@ of record. Two attacks follow from that, and both are defended:
   cannot hide text from the rendered view you approve from, nor paint over the interface —
   including the Approve button.
 
+## Unsent comments are stored on disk
+
+Comments you write before submitting are held in `localStorage` so a reload does not throw them
+away. That means the text of a draft comment — prose about a pull request that may be private —
+sits unencrypted in the browser profile until you submit it or sign out.
+
+Two consequences worth knowing:
+
+- Any code running on the `localhost` origin can read it. That is the same exposure as every
+  other dev server on the machine, and the reason Pilcrow's own API requires a per-launch secret.
+- Signing out clears every stored draft, deliberately. Removing the token while leaving the
+  readable half of the data behind would be a false reassurance.
+
+Nothing else is persisted in the browser. The GitHub token never reaches it.
+
 ## Browser extensions
 
 Any extension with content-script access to `localhost` can read what you type into the app and

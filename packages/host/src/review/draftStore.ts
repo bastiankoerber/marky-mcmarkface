@@ -89,4 +89,20 @@ export function draftCounts(): Record<string, number> {
   return counts;
 }
 
+/**
+ * Drop every stored draft.
+ *
+ * Comment text is prose about pull requests that may be private, sitting unencrypted in
+ * `localStorage` for as long as the browser profile lives. Signing out has to take it with it —
+ * otherwise "sign out" removes the token and leaves the readable half of the data behind, on a
+ * localhost origin shared with every other dev server on the machine.
+ */
+export function clearAllDrafts(): void {
+  try {
+    window.localStorage.removeItem(KEY);
+  } catch {
+    // Nothing to do; the store was already unreachable.
+  }
+}
+
 export const draftKey = prKey;
