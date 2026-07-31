@@ -344,6 +344,13 @@ function ThreadCard({
     >
       <header>
         <strong>{thread.comments[0]?.author}</strong>
+        {/*
+          Say which line. A card is pushed off its exact anchor whenever the card above it is
+          tall, so two threads on nearby paragraphs are otherwise impossible to tell apart —
+          the reader has to infer the anchor from the quoted text, which is exactly the doubt
+          this product exists to remove. Pending cards have always said it; threads did not.
+        */}
+        {thread.line !== null && <span className="muted small">line {thread.line}</span>}
         {thread.isResolved && <span className="tag">resolved</span>}
         {thread.isOutdated && <span className="tag">outdated</span>}
         <button
