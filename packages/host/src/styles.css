@@ -643,8 +643,21 @@ input, textarea {
   color: var(--ink-700);
   font-style: italic;
 }
-.md-body table { border-collapse: collapse; display: block; overflow-x: auto; }
-.md-body td, .md-body th { border: 1px solid var(--line); padding: 5px 11px; }
+/*
+ * Tables are read by scanning a column against its header, so the header has to be legible as
+ * one. It is set in the chrome face at a smaller size: a table is data, not prose, and setting
+ * it in 18px Newsreader makes a five-column comparison unreadable at any measure.
+ */
+.md-body table { border-collapse: collapse; display: block; overflow-x: auto; font-family: var(--font-ui); font-size: 13.5px; }
+.md-body td, .md-body th { border: 1px solid var(--line); padding: 6px 11px; vertical-align: top; }
+.md-body th {
+  text-align: left;
+  font-weight: 600;
+  background: var(--desk-sunk);
+  border-bottom-color: var(--border-strong);
+  white-space: nowrap;
+}
+.md-body tbody tr:nth-child(even) { background: color-mix(in oklab, var(--ink-900) 2.5%, transparent); }
 .md-body a { color: var(--accent); }
 .md-body img { max-width: 100%; }
 

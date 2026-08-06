@@ -216,6 +216,26 @@ function wrap(ctx: Ctx, node: Nodes, tag: string, inner: () => string, extra = '
   return `${open}${inner()}</${tag}>`;
 }
 
+/**
+ * One table row. `head` selects `<th>` over `<td>`; `align` is applied per column so a numeric
+ * column reads right-aligned the way the author wrote it.
+ */
+function renderRow(ctx: Ctx, row: Nodes, align: Array<string | null | undefined>, head: boolean): string {
+  const cells = (row as Parents).children;
+  const tag = head ? 'th' : 'td';
+  ctx.depth++;
+  const inner = cells
+    .map((cell, index) => {
+      const at = align[index];
+      const style = at ? ` style="text-align:${at}"` : '';
+      const scope = head ? ' scope="col"' : '';
+      return `<${tag}${scope}${style}${attrs(ctx, spanOf(cell as Nodes))}>${children(ctx, cell as Parents)}</${tag}>`;
+    })
+    .join('');
+  ctx.depth--;
+  return `<tr${attrs(ctx, spanOf(row))}>${inner}</tr>`;
+}
+
 function renderNode(ctx: Ctx, node: Nodes): string {
   // Front matter is not part of the rendered document. Keep it addressable but hidden so it can
   // still be commented on from the source view. Handled ahead of the switch because `toml` only
@@ -277,8 +297,26 @@ function renderNode(ctx: Ctx, node: Nodes): string {
       return `<img src="${esc(node.url)}" alt="${esc(node.alt ?? '')}"${attrs(ctx, spanOf(node))}>`;
     case 'imageReference':
       return `<img alt="${esc(node.alt ?? '')}"${attrs(ctx, spanOf(node))}>`;
-    case 'table':
-      return wrap(ctx, node, 'table', () => children(ctx, node));
+    /*
+     * GFM tables: the first row is the header, and the `align` array applies per column.
+     *
+     * Every cell used to render as a plain `<td>` inside a bare `<table>`, so a table arrived as
+     * an undifferentiated grid — no bold header, no alignment, nothing to read a column against.
+     * Reviewers responded by asking authors to "make this a proper table" for tables that were
+     * already correct Markdown, which is the worst kind of rendering bug: it sends the reader
+     * after the wrong culprit.
+     */
+    case 'table': {
+      const rows = node.children;
+      const align = node.align ?? [];
+      const head = rows[0] ? renderRow(ctx, rows[0], align, true) : '';
+      const body = rows
+        .slice(1)
+        .map((row) => renderRow(ctx, row, align, false))
+        .join('');
+      return wrap(ctx, node, 'table', () => `<thead>${head}</thead><tbody>${body}</tbody>`);
+    }
+    // Reached only if a row or cell is rendered outside its table — keep them addressable.
     case 'tableRow':
       return wrap(ctx, node, 'tr', () => children(ctx, node));
     case 'tableCell':
