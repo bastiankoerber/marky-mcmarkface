@@ -16,13 +16,13 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
+      # Reads the exact version from package.json#packageManager. Declaring a second, broader
+      # version here makes pnpm/action-setup reject the workflow before CI can start.
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
