@@ -39,8 +39,17 @@ and the release checklist are in [docs/releasing.md](docs/releasing.md).
 Signed desktop releases check GitHub directly for updates and ask before downloading or
 restarting. Development builds never replace themselves automatically.
 
-Ad-hoc-signed local builds may require **right-click → Open** the first time. Public release artifacts
-should be signed and notarized with an Apple Developer ID.
+The current unsigned prerelease is not notarized, so macOS may refuse to open it even after you
+drag the app from the DMG into **Applications**. If you downloaded the DMG from this repository
+and verified its checksum against `SHA256SUMS.txt`, remove quarantine from this app only:
+
+```bash
+xattr -dr com.apple.quarantine "/Applications/Marky McMarkface.app"
+```
+
+Then open **Marky McMarkface** normally. This command bypasses Gatekeeper for that copy of the
+app; do not run it on an installer from somewhere you do not trust. Signed and notarized public
+releases will not require this step.
 
 ### Local web installation
 
