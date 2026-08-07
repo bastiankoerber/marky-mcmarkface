@@ -3,8 +3,8 @@ import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
-const roots = JSON.parse(
-  execFileSync('pnpm', ['-r', 'list', '--prod', '--depth', 'Infinity', '--json'], {
+const licenseGroups = JSON.parse(
+  execFileSync('pnpm', ['licenses', 'list', '--prod', '--json'], {
     cwd: new URL('..', import.meta.url),
     encoding: 'utf8',
   }),
@@ -12,22 +12,17 @@ const roots = JSON.parse(
 
 const packages = new Map();
 
-function visit(dependencies) {
-  for (const dependency of Object.values(dependencies ?? {})) {
+for (const entries of Object.values(licenseGroups)) {
+  for (const dependency of entries) {
     // Platform keyring packages contain the same project binary under the parent package's MIT
     // license. Listing only the parent keeps this file deterministic across build machines.
-    const coveredByParent = dependency.from.startsWith('@napi-rs/keyring-');
-    if (!coveredByParent && dependency.resolved && dependency.path && !dependency.version.startsWith('link:')) {
-      packages.set(`${dependency.from}@${dependency.version}`, dependency.path);
-    }
-    visit(dependency.dependencies);
-    visit(dependency.optionalDependencies);
-  }
-}
+    if (dependency.name.startsWith('@napi-rs/keyring-')) continue;
 
-for (const root of roots) {
-  visit(root.dependencies);
-  visit(root.optionalDependencies);
+    for (const packagePath of dependency.paths) {
+      const pkg = JSON.parse(readFileSync(join(packagePath, 'package.json'), 'utf8'));
+      packages.set(`${pkg.name}@${pkg.version}`, packagePath);
+    }
+  }
 }
 
 function sourceUrl(pkg) {
