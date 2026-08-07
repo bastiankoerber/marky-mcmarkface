@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, type AuthStatus, type DeviceStart } from '../api.js';
 import { Loading } from '../Loading.jsx';
 import { BrandIcon } from '../BrandIcon.jsx';
+import { authPhaseAfterBootstrap } from './bootstrap-policy.js';
 
 /**
  * First run.
@@ -60,7 +61,16 @@ export function Connect({
   // Success arrives over SSE and App re-reads auth status, so DeviceCode needs no callback.
   if (phase === 'device') return <DeviceCode onCancel={() => setPhase('idle')} />;
   if (phase === 'bootstrap') {
-    return <Bootstrap status={status} onCancel={() => setPhase('idle')} onSaved={onConnected} />;
+    return (
+      <Bootstrap
+        status={status}
+        onCancel={() => setPhase('idle')}
+        onSaved={(nextPhase) => {
+          setPhase(nextPhase);
+          onConnected();
+        }}
+      />
+    );
   }
   if (phase === 'access') {
     return <GitHubAccess onCancel={() => setPhase('idle')} onContinue={() => void openGitHub()} />;
@@ -77,6 +87,10 @@ export function Connect({
           <p className="status-line">Opening GitHub…</p>
         ) : status.oauthConfigured ? (
           <button className="btn primary large" onClick={() => setPhase('access')}>
+            Connect GitHub
+          </button>
+        ) : status.deviceFlowConfigured ? (
+          <button className="btn primary large" onClick={() => setPhase('device')}>
             Connect GitHub
           </button>
         ) : status.gh.loggedIn ? (
@@ -399,7 +413,7 @@ function Bootstrap({
 }: {
   status: AuthStatus;
   onCancel: () => void;
-  onSaved: () => void;
+  onSaved: (nextPhase: 'access' | 'device') => void;
 }) {
   const [clientId, setClientId] = useState('');
   const [clientSecret, setClientSecret] = useState('');
@@ -411,7 +425,7 @@ function Bootstrap({
     setFailure(null);
     try {
       await api.oauthConfigure(clientId, clientSecret);
-      onSaved();
+      onSaved(authPhaseAfterBootstrap(clientSecret));
     } catch (err) {
       setFailure((err as Error).message);
     } finally {
