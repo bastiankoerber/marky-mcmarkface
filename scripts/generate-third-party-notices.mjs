@@ -10,6 +10,7 @@ const licenseGroups = JSON.parse(
   }),
 );
 
+const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const packages = new Map();
 
 for (const entries of Object.values(licenseGroups)) {
@@ -18,8 +19,14 @@ for (const entries of Object.values(licenseGroups)) {
     // license. Listing only the parent keeps this file deterministic across build machines.
     if (dependency.name.startsWith('@napi-rs/keyring-')) continue;
 
-    for (const packagePath of dependency.paths) {
+    // With the hoisted linker, pnpm can report a virtual-store path that is absent on Linux even
+    // though the package is installed at the root. Prefer the reported paths, then resolve the
+    // hoisted location. Reading package.json gives us the actual installed version in either case.
+    const candidatePaths = [...dependency.paths, join(projectRoot, 'node_modules', dependency.name)];
+    for (const packagePath of new Set(candidatePaths)) {
+      if (!existsSync(join(packagePath, 'package.json'))) continue;
       const pkg = JSON.parse(readFileSync(join(packagePath, 'package.json'), 'utf8'));
+      if (!dependency.versions.includes(pkg.version)) continue;
       packages.set(`${pkg.name}@${pkg.version}`, packagePath);
     }
   }
