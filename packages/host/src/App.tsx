@@ -8,6 +8,7 @@ import { Connect } from './onboarding/Connect.jsx';
 import { Connected } from './onboarding/Connected.jsx';
 import { Dashboard } from './dashboard/Dashboard.jsx';
 import { Review } from './review/Review.jsx';
+import { BrandIcon } from './BrandIcon.jsx';
 
 type Data = DashboardData & { prefs: Prefs; staleError?: string | null };
 type View = { kind: 'dashboard' } | { kind: 'review'; owner: string; repo: string; number: number };
@@ -73,6 +74,7 @@ export function App() {
     return subscribe({
       dashboard: (payload) => setData((prev) => ({ ...(payload as DashboardData), prefs: prev?.prefs ?? emptyPrefs })),
       auth: () => void loadStatus(),
+      'auth-pending': () => void loadStatus(),
       'auth-error': (payload) => setAuthError((payload as { message: string }).message),
       error: (payload) => setError((payload as { message: string }).message),
     });
@@ -91,7 +93,7 @@ export function App() {
     setView(next);
   };
 
-  if (!status) return <Loading line="Starting Pilcrow…" />;
+  if (!status) return <Loading line="Starting Marky McMarkface…" />;
 
   if (!status.connected) {
     return <Connect status={status} error={authError} onConnected={loadStatus} />;
@@ -107,7 +109,8 @@ export function App() {
     <div className="app">
       <nav className="topbar">
         <button className="brand" onClick={() => navigate({ kind: 'dashboard' })}>
-          <span className="brand-mark">¶</span> Pilcrow
+          <BrandIcon className="brand-logo" size={24} />
+          <span>Marky McMarkface</span>
         </button>
         <span className="spacer" />
         <ThemeSwitch pref={pref} onChange={setPref} />

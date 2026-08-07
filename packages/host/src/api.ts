@@ -1,12 +1,12 @@
-import type { DashboardData } from '@pilcrow/server/src/github/dashboard.js';
-import type { PrDetail } from '@pilcrow/server/src/github/pr.js';
-import type { PendingComment, ReviewEvent } from '@pilcrow/server/src/github/review.js';
-import type { Prefs } from '@pilcrow/server/src/prefs.js';
+import type { DashboardData } from '@marky-mcmarkface/server/src/github/dashboard.js';
+import type { PrDetail } from '@marky-mcmarkface/server/src/github/pr.js';
+import type { PendingComment, ReviewEvent } from '@marky-mcmarkface/server/src/github/review.js';
+import type { Prefs } from '@marky-mcmarkface/server/src/prefs.js';
 
 export type { DashboardData, PrDetail, PendingComment, ReviewEvent, Prefs };
 
 /**
- * Every request carries this launch's `X-Pilcrow` key.
+ * Every request carries this launch's `X-Marky-McMarkface` key.
  *
  * The header is what makes a cross-origin page unable to drive this API — a form cannot set
  * custom headers, and a cross-origin fetch that tries earns a preflight the server fails. The
@@ -16,10 +16,10 @@ export type { DashboardData, PrDetail, PendingComment, ReviewEvent, Prefs };
  * In production the server injects it into the served document. In development the Vite proxy
  * attaches it, so the browser never needs it at all.
  */
-const SESSION_KEY = document.querySelector<HTMLMetaElement>('meta[name="pilcrow-key"]')?.content ?? '';
+const SESSION_KEY = document.querySelector<HTMLMetaElement>('meta[name="marky-mcmarkface-key"]')?.content ?? '';
 
 function authHeaders(extra: HeadersInit = {}): HeadersInit {
-  return SESSION_KEY ? { 'X-Pilcrow': SESSION_KEY, ...extra } : extra;
+  return SESSION_KEY ? { 'X-Marky-McMarkface': SESSION_KEY, ...extra } : extra;
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
@@ -44,9 +44,20 @@ export interface AuthStatus {
   avatarUrl: string | null;
   scopes: string | null;
   source: 'oauth' | 'device-flow' | 'gh-cli' | 'pat' | null;
-  /** True when Pilcrow can run the one-click flow. False means the app needs registering once. */
+  /** How the active credential is held, or `locked` when an encrypted one awaits consent. */
+  storage: 'none' | 'locked' | 'keychain' | 'session';
+  /** A validated token held only in the server process until the user chooses storage. */
+  pending: {
+    login: string;
+    avatarUrl: string;
+    scopes: string;
+    source: 'oauth' | 'device-flow' | 'gh-cli' | 'pat';
+  } | null;
+  /** True when Marky McMarkface can run the one-click flow. False means the app needs registering once. */
   oauthConfigured: boolean;
   deviceFlowConfigured: boolean;
+  /** True inside the packaged desktop application. */
+  desktop: boolean;
   /** Prefilled GitHub form, used only when oauthConfigured is false. */
   registrationUrl: string;
   gh: {
@@ -75,6 +86,11 @@ export const api = {
   connectPat: (token: string) => post<{ login: string }>('/api/auth/pat', { token }),
   deviceStart: () => post<DeviceStart>('/api/auth/device/start'),
   deviceCancel: () => post<{ ok: true }>('/api/auth/device/cancel'),
+  finishConnection: (mode: 'keychain' | 'session') =>
+    post<{ login: string }>('/api/auth/storage/commit', { mode }),
+  cancelConnection: () => post<{ ok: true }>('/api/auth/storage/cancel'),
+  unlockConnection: () => post<{ login: string }>('/api/auth/storage/unlock'),
+  forgetConnection: () => post<{ ok: true }>('/api/auth/storage/forget'),
   signOut: () => post<{ ok: true }>('/api/auth/signout'),
 
   dashboard: () => call<DashboardData & { prefs: Prefs; staleError?: string | null }>('/api/dashboard'),
@@ -105,7 +121,7 @@ export const api = {
  * Server-pushed updates. The server does the polling; this just listens.
  *
  * Deliberately `fetch` + a stream reader rather than `EventSource`. `EventSource` cannot set
- * request headers, so it could never send the `X-Pilcrow` key and every connection was rejected
+ * request headers, so it could never send the `X-Marky-McMarkface` key and every connection was rejected
  * — live updates had never actually worked. Exempting the path from the header check would have
  * made this stream, which carries private repository names, PR titles and file paths, readable
  * by anything that could reach it.

@@ -173,7 +173,7 @@ export async function fetchDashboard(gh: GitHubClient): Promise<DashboardData> {
   if (reviewRequested.length === 0 && authored.length === 0 && activity.length === 0) {
     warnings.push(
       'No pull requests found. If you expect some, your organisation may restrict OAuth app ' +
-        'access — an owner has to approve pilcrow before its token can see org repositories.',
+        'access — an owner has to approve marky-mcmarkface before its token can see org repositories.',
     );
   }
 

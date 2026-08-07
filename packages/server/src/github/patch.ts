@@ -1,4 +1,4 @@
-import type { DiffHunk, Side } from '@pilcrow/viewer-api';
+import type { DiffHunk, Side } from '@marky-mcmarkface/viewer-api';
 
 /**
  * Unified-diff parsing, for one reason above all: **GitHub rejects a review comment on any line

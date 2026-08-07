@@ -4,6 +4,7 @@ import DOMPurify from 'dompurify';
 import { parseMarkdown, normaliseSource } from './parse.js';
 import { renderToHtml } from './render.js';
 import { describeRange } from './anchoring.js';
+import { sanitizeRenderedHtml } from './sanitize.js';
 
 /**
  * Review integrity — a pull request author attacking the reviewer.
@@ -14,15 +15,8 @@ import { describeRange } from './anchoring.js';
  * comment on, and that what you see is what will merge.
  */
 
-// Mirrors the production config in MarkdownViewer.tsx. Kept in sync deliberately: if that config
-// is loosened, these tests should start failing.
 function sanitize(html: string, window: Window): string {
-  return DOMPurify(window as unknown as Window & typeof globalThis).sanitize(html, {
-    ADD_TAGS: ['ins', 'del'],
-    ADD_ATTR: ['target'],
-    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
-    FORBID_ATTR: ['style', 'class', 'srcdoc', 'formaction', 'ping'],
-  });
+  return sanitizeRenderedHtml(html, DOMPurify(window as unknown as Window & typeof globalThis));
 }
 
 function render(markdown: string, nonce: string) {
@@ -30,8 +24,8 @@ function render(markdown: string, nonce: string) {
   const dom = new JSDOM('<!doctype html><body></body>');
   const html = sanitize(renderToHtml(source, parseMarkdown(source), { nonce }), dom.window as unknown as Window);
   const root = dom.window.document.createElement('div');
-  root.setAttribute('data-pilcrow-root', '');
-  root.setAttribute('data-pilcrow-nonce', nonce);
+  root.setAttribute('data-marky-mcmarkface-root', '');
+  root.setAttribute('data-marky-mcmarkface-nonce', nonce);
   root.innerHTML = html;
   dom.window.document.body.appendChild(root);
   return { dom, root: root as unknown as HTMLElement, source, html };
@@ -59,7 +53,7 @@ describe('a pull request cannot forge anchoring stamps', () => {
   const hostile = [
     'We grant the vendor unlimited access to all customer data.',
     '',
-    '<div data-pilcrow-pos="0:40" data-pilcrow-x=""><pre>This release only fixes typos.</pre></div>',
+    '<div data-marky-mcmarkface-pos="0:40" data-marky-mcmarkface-x=""><pre>This release only fixes typos.</pre></div>',
     '',
   ].join('\n');
 
@@ -77,10 +71,10 @@ describe('a pull request cannot forge anchoring stamps', () => {
   });
 
   it('a forged stamp does resolve when the nonce is absent — proving the nonce is what stops it', () => {
-    // Same document rendered without a nonce: the attacker's bare `data-pilcrow-pos` is now
+    // Same document rendered without a nonce: the attacker's bare `data-marky-mcmarkface-pos` is now
     // indistinguishable from ours, and the comment lands on text the reviewer never read.
     const { dom, root, source } = render(hostile, '');
-    root.removeAttribute('data-pilcrow-nonce');
+    root.removeAttribute('data-marky-mcmarkface-nonce');
     const range = selectText(dom, root, 'This release only fixes typos.');
     const described = describeRange(root, range);
     expect(described).not.toBeNull();
@@ -109,7 +103,7 @@ describe('a pull request cannot hide content or paint over the interface', () =>
   });
 
   it('strips class, so raw HTML cannot borrow the app’s own chrome', () => {
-    const out = sanitize('<div class="banner ok">Pilcrow says this is safe</div>', window);
+    const out = sanitize('<div class="banner ok">Marky McMarkface says this is safe</div>', window);
     expect(out).not.toContain('class=');
   });
 });
@@ -126,5 +120,32 @@ describe('the sanitiser still blocks script execution', () => {
     ['<base href="//evil.test">', 'base'],
   ])('neutralises %s', (payload, forbidden) => {
     expect(sanitize(payload, window)).not.toContain(forbidden);
+  });
+});
+
+describe('a pull request cannot phone home while it is rendered', () => {
+  const window = new JSDOM('<!doctype html>').window as unknown as Window;
+
+  it('removes external images, media, srcset, and SVG resource loads', () => {
+    const out = sanitize(
+      '<img src="https://tracker.example/open?id=private" srcset="https://tracker.example/2x 2x">' +
+        '<video src="https://tracker.example/video" poster="https://tracker.example/poster"></video>' +
+        '<svg><image href="https://tracker.example/svg"></image></svg>',
+      window,
+    );
+    expect(out).not.toContain('tracker.example');
+    expect(out).not.toContain('srcset');
+    expect(out).not.toContain('poster');
+  });
+
+  it('keeps local, data, and GitHub-hosted images', () => {
+    const out = sanitize(
+      '<img src="/fonts/local.png"><img src="data:image/png;base64,AA==">' +
+        '<img src="https://raw.githubusercontent.com/org/repo/main/image.png">',
+      window,
+    );
+    expect(out).toContain('/fonts/local.png');
+    expect(out).toContain('data:image/png;base64,AA==');
+    expect(out).toContain('raw.githubusercontent.com');
   });
 });

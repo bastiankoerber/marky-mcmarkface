@@ -66,11 +66,11 @@ suite('markdown anchoring — character-exact cases', () => {
 
   it('inline code, excluding its backticks', () => {
     // The mdast node spans the backticks; the stamp must narrow to the code text itself.
-    expectExact('Run `brew install pilcrow` to begin.\n', 'brew install pilcrow');
+    expectExact('Run `brew install marky-mcmarkface` to begin.\n', 'brew install marky-mcmarkface');
   });
 
   it('fenced code, excluding the fences', () => {
-    expectExact('```bash\nbrew install pilcrow\n```\n', 'brew install pilcrow');
+    expectExact('```bash\nbrew install marky-mcmarkface\n```\n', 'brew install marky-mcmarkface');
   });
 
   it('link text, not the destination', () => {
@@ -82,7 +82,7 @@ suite('markdown anchoring — character-exact cases', () => {
   });
 
   it('a GFM table cell', () => {
-    expectExact('| Tool | Status |\n| --- | --- |\n| pilcrow | shipping |\n', 'shipping');
+    expectExact('| Tool | Status |\n| --- | --- |\n| marky-mcmarkface | shipping |\n', 'shipping');
   });
 
   it('a nested list item', () => {

@@ -1,5 +1,5 @@
 /*
- * Pilcrow — "Proof"
+ * Marky McMarkface — "Proof"
  *
  * The mental model is a printed proof on a desk, not a code diff. The document is paper with
  * book typography; the chrome is a quieter desk framing it; comments are marginalia; changes are
@@ -284,13 +284,16 @@ input, textarea {
 }
 
 .mark {
-  font-size: 64px;
-  line-height: 1;
-  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  color: var(--ink-900);
-  opacity: 0.9;
+  display: grid;
+  place-items: center;
 }
 .mark.breathing { animation: breathe 2.4s ease-in-out infinite; }
+.mark-logo {
+  display: block;
+  width: 104px;
+  height: 104px;
+  border-radius: 24px;
+}
 
 @keyframes breathe {
   0%, 100% { opacity: 0.35; transform: scale(0.97); }
@@ -327,6 +330,55 @@ input, textarea {
 }
 .disclosure p { margin: 0 0 8px; }
 .disclosure p:last-child { margin-bottom: 0; }
+
+.trust-stage { max-width: 560px; }
+.trust-stage .lede { max-width: 46ch; }
+.trust-card {
+  width: 100%;
+  text-align: left;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--raised);
+}
+.trust-card h2 {
+  margin: 0 0 8px;
+  font-size: var(--ui-base);
+}
+.trust-card h2:not(:first-child) { margin-top: 18px; }
+.trust-card p { margin: 0 0 12px; }
+.trust-card p:last-child { margin-bottom: 0; }
+.trust-list {
+  margin: 0;
+  padding-left: 21px;
+  color: var(--ink-700);
+  font-size: var(--ui-sm);
+}
+.trust-list li { margin: 0 0 7px; padding-left: 2px; }
+.trust-list li:last-child { margin-bottom: 0; }
+.trust-list.can li::marker { color: var(--add); }
+.trust-list.cannot li::marker { color: var(--ink-500); }
+.trust-list.compact { margin: 10px 0; }
+.scope-note {
+  margin-top: 14px !important;
+  color: var(--ink-500);
+  font-size: var(--ui-sm);
+}
+.keychain-explainer details {
+  padding-top: 2px;
+  color: var(--ink-700);
+  font-size: var(--ui-sm);
+}
+.keychain-explainer summary { cursor: pointer; color: var(--accent); }
+.trust-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
+}
+.trust-actions .btn.large { margin-top: 0; }
+.btn.link.danger { color: var(--del); }
 
 @keyframes settle {
   from { opacity: 0; transform: translateY(-4px); }
@@ -379,10 +431,11 @@ input, textarea {
   to { opacity: 1; transform: none; }
 }
 
-.brand-mark {
-  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
-  opacity: 0.6;
-  margin-right: 2px;
+.brand-logo {
+  display: block;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
 }
 
 /* Motion is decoration here; none of it carries meaning on its own. */
@@ -670,12 +723,12 @@ input, textarea {
  * underline for an insertion and a rule through a deletion — so we do that.
  * Green and red stay, as mark colour rather than background.
  */
-[data-pilcrow-change] {
+[data-marky-mcmarkface-change] {
   position: relative;
   padding-left: var(--sp-4);
   margin-left: calc(var(--sp-4) * -1);
 }
-[data-pilcrow-change]::before {
+[data-marky-mcmarkface-change]::before {
   content: '';
   position: absolute;
   left: 0;
@@ -685,19 +738,19 @@ input, textarea {
   border-radius: 1px;
   background: var(--border-strong);
 }
-[data-pilcrow-change='added']::before   { background: var(--add); }
-[data-pilcrow-change='changed']::before { background: var(--warn); }
-[data-pilcrow-change='removed']::before { background: var(--del); }
-[data-pilcrow-change='removed'] { opacity: 0.62; }
+[data-marky-mcmarkface-change='added']::before   { background: var(--add); }
+[data-marky-mcmarkface-change='changed']::before { background: var(--warn); }
+[data-marky-mcmarkface-change='removed']::before { background: var(--del); }
+[data-marky-mcmarkface-change='removed'] { opacity: 0.62; }
 
-ins[data-pilcrow-ins] {
+ins[data-marky-mcmarkface-ins] {
   text-decoration: underline 2px var(--add);
   text-underline-offset: 0.22em;
   text-decoration-skip-ink: none;
   background: none;
   color: inherit;
 }
-del[data-pilcrow-del] {
+del[data-marky-mcmarkface-del] {
   text-decoration: line-through 1.5px var(--del);
   background: none;
   color: color-mix(in oklab, var(--ink-900) 55%, transparent);
@@ -795,7 +848,7 @@ del[data-pilcrow-del] {
   letter-spacing: -0.01em;
   max-width: 60ch;
 }
-.brand { display: inline-flex; align-items: center; gap: 2px; }
+.brand { display: inline-flex; align-items: center; gap: 8px; }
 
 /* app shell ----------------------------------------------------------------- */
 
@@ -869,26 +922,23 @@ del[data-pilcrow-del] {
 .loading-line { margin: 0; font-size: 14px; color: var(--ink-900); }
 .loading-slow { margin: 0; font-size: 12px; color: var(--ink-500); max-width: 34ch; animation: settle 240ms ease-out; }
 
-.loading-mark { color: var(--accent); overflow: visible; }
-.loading-stroke {
-  stroke: currentColor;
-  stroke-dasharray: 190;
-  stroke-dashoffset: 190;
-  animation: pilcrow-write 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+.loading-mark {
+  display: block;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  animation: marky-settle 2.6s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
 
-/* Writes the glyph, holds it a beat, then fades out and starts again. */
-@keyframes pilcrow-write {
-  0%   { stroke-dashoffset: 190; opacity: 0.25; }
-  45%  { stroke-dashoffset: 0;   opacity: 1; }
-  70%  { stroke-dashoffset: 0;   opacity: 1; }
-  100% { stroke-dashoffset: 0;   opacity: 0.15; }
+@keyframes marky-settle {
+  0%, 100% { opacity: 0.45; transform: translateY(1px) scale(0.97); }
+  50% { opacity: 1; transform: none; }
 }
 
 /* Motion here is decoration. The drawn mark alone carries it. */
 @media (prefers-reduced-motion: reduce) {
   .loading.shown { transition: none; }
-  .loading-stroke { animation: none; stroke-dashoffset: 0; opacity: 0.8; }
+  .loading-mark { animation: none; opacity: 0.9; }
   .loading-slow { animation: none; }
 }
 

@@ -4,7 +4,7 @@
     "noEmit": true,
     "types": ["node"],
     "paths": {
-      "@pilcrow/viewer-api": ["./packages/viewer-api/src/index.ts"]
+      "@marky-mcmarkface/viewer-api": ["./packages/viewer-api/src/index.ts"]
     }
   },
   "include": ["packages/**/*.ts", "packages/**/*.tsx"],

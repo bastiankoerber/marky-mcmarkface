@@ -14,7 +14,7 @@ export interface DraftBuffer {
   comments: LocalComment[];
 }
 
-const KEY = 'pilcrow.drafts.v1';
+const KEY = 'marky-mcmarkface.drafts.v1';
 const prKey = (owner: string, repo: string, number: number) => `${owner}/${repo}#${number}`;
 
 type Store = Record<string, DraftBuffer>;

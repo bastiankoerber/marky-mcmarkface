@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type AuthStatus, type DeviceStart } from '../api.js';
 import { Loading } from '../Loading.jsx';
+import { BrandIcon } from '../BrandIcon.jsx';
 
 /**
  * First run.
@@ -19,12 +20,15 @@ export function Connect({
   error?: string | null;
   onConnected: () => void;
 }) {
-  const [phase, setPhase] = useState<'idle' | 'leaving' | 'device' | 'bootstrap'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'access' | 'leaving' | 'device' | 'bootstrap'>('idle');
   const [failure, setFailure] = useState<string | null>(error ?? null);
   const [showAccess, setShowAccess] = useState(false);
   const [showOther, setShowOther] = useState(false);
 
-  useEffect(() => setFailure(error ?? null), [error]);
+  useEffect(() => {
+    setFailure(error ?? null);
+    if (error) setPhase('idle');
+  }, [error]);
 
   const run = async (fn: () => Promise<unknown>) => {
     setFailure(null);
@@ -36,36 +40,43 @@ export function Connect({
     }
   };
 
-  /** One click. Navigate this tab to GitHub; the server catches the redirect and sends us back. */
-  const connect = async () => {
+  /** One click. Desktop keeps the app open and uses the system browser; web returns in this tab. */
+  const openGitHub = async () => {
     setFailure(null);
     setPhase('leaving');
     try {
       const { url } = await api.oauthStart();
-      window.location.assign(url);
+      if (status.desktop) window.open(url, '_blank', 'noopener,noreferrer');
+      else window.location.assign(url);
     } catch (err) {
       setPhase('idle');
       setFailure((err as Error).message);
     }
   };
 
+  if (status.storage === 'locked') return <UnlockConnection onChanged={onConnected} />;
+  if (status.pending) return <StorageChoice pending={status.pending} onChanged={onConnected} />;
+
   // Success arrives over SSE and App re-reads auth status, so DeviceCode needs no callback.
   if (phase === 'device') return <DeviceCode onCancel={() => setPhase('idle')} />;
   if (phase === 'bootstrap') {
     return <Bootstrap status={status} onCancel={() => setPhase('idle')} onSaved={onConnected} />;
+  }
+  if (phase === 'access') {
+    return <GitHubAccess onCancel={() => setPhase('idle')} onContinue={() => void openGitHub()} />;
   }
 
   return (
     <div className="stage">
       <div className="stage-inner">
         <Mark animate={phase === 'leaving'} />
-        <h1 className="wordmark">Pilcrow</h1>
+        <h1 className="wordmark">Marky McMarkface</h1>
         <p className="lede">Review Markdown pull requests the way they will be read.</p>
 
         {phase === 'leaving' ? (
           <p className="status-line">Opening GitHub…</p>
         ) : status.oauthConfigured ? (
-          <button className="btn primary large" onClick={() => void connect()}>
+          <button className="btn primary large" onClick={() => setPhase('access')}>
             Connect GitHub
           </button>
         ) : status.gh.loggedIn ? (
@@ -102,7 +113,7 @@ export function Connect({
           </>
         ) : (
           <button className="btn primary large" onClick={() => setPhase('bootstrap')}>
-            Set up Pilcrow
+            Set up Marky McMarkface
           </button>
         )}
 
@@ -110,7 +121,7 @@ export function Connect({
 
         <div className="quiet-links">
           <button className="btn link" onClick={() => setShowAccess(!showAccess)}>
-            What Pilcrow can access
+            What Marky McMarkface can access
           </button>
           <button className="btn link" onClick={() => setShowOther(!showOther)}>
             Other ways to connect
@@ -119,13 +130,20 @@ export function Connect({
 
         {showAccess && (
           <div className="disclosure">
-            <p>Pilcrow reads the pull requests you can already see, and posts review comments as you.</p>
             <p>
-              Your token is kept in the macOS Keychain and never reaches the browser. Nothing is
-              sent anywhere except GitHub — there is no Pilcrow server.
+              <strong>Marky McMarkface can</strong> read repository contents, pull requests, and
+              organisation membership available to your account. It posts reviews, replies, and
+              resolves threads only when you ask it to.
+            </p>
+            <p>
+              <strong>It does not implement</strong> pushing commits, merging pull requests,
+              deleting repositories, or changing repository settings. Your Mac and GitHub
+              passwords never reach the app, and there is no hosted Marky McMarkface service or
+              analytics system.
             </p>
             <p className="muted small">
-              Requested scopes: <code>repo</code>, <code>read:org</code>.
+              GitHub's classic <code>repo</code> scope is broader than these implemented features.
+              You can instead paste a fine-grained token under “Other ways to connect”.
             </p>
           </div>
         )}
@@ -139,9 +157,9 @@ export function Connect({
                 </button>
                 {status.gh.excessScopes && status.gh.excessScopes.length > 0 && (
                   <p className="muted small">
-                    Instant, but that token belongs to the GitHub CLI, so Pilcrow's requests appear
+                    Instant, but that token belongs to the GitHub CLI, so Marky McMarkface's requests appear
                     in audit logs as “GitHub CLI”. It also carries{' '}
-                    <code>{status.gh.excessScopes.join(', ')}</code>, which Pilcrow never needs.
+                    <code>{status.gh.excessScopes.join(', ')}</code>, which Marky McMarkface never needs.
                   </p>
                 )}
               </div>
@@ -166,17 +184,203 @@ export function Connect({
   );
 }
 
-/** The pilcrow. It breathes only while we're waiting on something. */
+/** The product mark. It breathes only while we're waiting on something. */
 function Mark({ animate }: { animate: boolean }) {
   return (
     <div className={`mark ${animate ? 'breathing' : ''}`} aria-hidden="true">
-      ¶
+      <BrandIcon className="mark-logo" size={104} />
+    </div>
+  );
+}
+
+function GitHubAccess({ onContinue, onCancel }: { onContinue: () => void; onCancel: () => void }) {
+  return (
+    <div className="stage">
+      <div className="stage-inner trust-stage">
+        <Mark animate={false} />
+        <h1 className="wordmark">Before GitHub opens</h1>
+        <p className="lede">GitHub will ask you to authorise this local application.</p>
+
+        <div className="trust-card">
+          <h2>What Marky McMarkface uses</h2>
+          <ul className="trust-list can">
+            <li>Read repositories, Markdown files, pull requests, and organisation membership you can access.</li>
+            <li>Post reviews and replies, or resolve a thread, only when you choose that action.</li>
+            <li>Talk directly from this Mac to GitHub. There is no hosted Marky service or analytics system.</li>
+          </ul>
+
+          <h2>What it does not implement</h2>
+          <ul className="trust-list cannot">
+            <li>Push commits, merge pull requests, delete repositories, or change repository settings.</li>
+            <li>Receive your GitHub password or your Mac login password.</li>
+          </ul>
+
+          <p className="scope-note">
+            GitHub's classic <code>repo</code> scope is broader than these implemented features.
+            For narrower access, you can use a fine-grained personal token instead.
+          </p>
+        </div>
+
+        <button className="btn primary large" onClick={onContinue}>
+          Continue to GitHub
+        </button>
+        <button className="btn link" onClick={onCancel}>
+          Not now
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function StorageChoice({
+  pending,
+  onChanged,
+}: {
+  pending: NonNullable<AuthStatus['pending']>;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState<'keychain' | 'session' | 'cancel' | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const finish = async (mode: 'keychain' | 'session') => {
+    setBusy(mode);
+    setFailure(null);
+    try {
+      await api.finishConnection(mode);
+      onChanged();
+    } catch (err) {
+      setFailure((err as Error).message);
+      setBusy(null);
+    }
+  };
+
+  const cancel = async () => {
+    setBusy('cancel');
+    setFailure(null);
+    try {
+      await api.cancelConnection();
+      onChanged();
+    } catch (err) {
+      setFailure((err as Error).message);
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="stage">
+      <div className="stage-inner trust-stage">
+        {pending.avatarUrl ? <img className="avatar-lg" src={pending.avatarUrl} alt="" /> : <Mark animate={false} />}
+        <h1 className="wordmark">Protect your GitHub connection</h1>
+        <p className="lede">GitHub approved @{pending.login}. Now choose where its access token lives.</p>
+
+        <div className="trust-card keychain-explainer">
+          <h2>If you save it securely</h2>
+          <p>
+            macOS will ask Marky McMarkface to access an item named{' '}
+            <strong>“Marky McMarkface Safe Storage”</strong> in your login keychain.
+          </p>
+          <p>
+            That item is an app-specific encryption key used to protect your GitHub token. The
+            password box belongs to macOS: Marky McMarkface cannot see or store what you type, and
+            it cannot use this request to read unrelated Keychain items.
+          </p>
+          <details>
+            <summary>What do Allow, Always Allow, and Deny mean?</summary>
+            <ul className="trust-list compact">
+              <li><strong>Allow</strong> permits this access once.</li>
+              <li><strong>Always Allow</strong> remembers it for this signed build.</li>
+              <li><strong>Deny</strong> stores nothing. You can retry or use session-only access.</li>
+            </ul>
+            <p className="scope-note">The dialog expects your Mac login password, not your GitHub password.</p>
+          </details>
+        </div>
+
+        {failure && <p className="failure">{failure}</p>}
+
+        <div className="trust-actions">
+          <button className="btn primary large" disabled={busy !== null} onClick={() => void finish('keychain')}>
+            {busy === 'keychain' ? 'Waiting for macOS…' : 'Continue to macOS'}
+          </button>
+          <button className="btn" disabled={busy !== null} onClick={() => void finish('session')}>
+            {busy === 'session' ? 'Connecting…' : 'Use until I quit'}
+          </button>
+        </div>
+        <p className="status-line">Session-only access is kept in memory and is never written to disk.</p>
+        <button className="btn link" disabled={busy !== null} onClick={() => void cancel()}>
+          {busy === 'cancel' ? 'Cancelling…' : 'Cancel connection'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function UnlockConnection({ onChanged }: { onChanged: () => void }) {
+  const [busy, setBusy] = useState<'unlock' | 'forget' | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const unlock = async () => {
+    setBusy('unlock');
+    setFailure(null);
+    try {
+      await api.unlockConnection();
+      onChanged();
+    } catch (err) {
+      setFailure((err as Error).message);
+      setBusy(null);
+    }
+  };
+
+  const forget = async () => {
+    const confirmed = window.confirm(
+      'Remove the saved connection from this Mac? This does not revoke the application on GitHub.',
+    );
+    if (!confirmed) return;
+    setBusy('forget');
+    setFailure(null);
+    try {
+      await api.forgetConnection();
+      onChanged();
+    } catch (err) {
+      setFailure((err as Error).message);
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="stage">
+      <div className="stage-inner trust-stage">
+        <Mark animate={false} />
+        <h1 className="wordmark">Unlock your saved connection</h1>
+        <p className="lede">An encrypted GitHub connection is stored on this Mac.</p>
+
+        <div className="trust-card keychain-explainer">
+          <p>
+            Continuing may make macOS ask for access to{' '}
+            <strong>“Marky McMarkface Safe Storage”</strong>. It is the app-specific encryption key
+            that protects your GitHub token.
+          </p>
+          <p>
+            Any password is entered into a macOS dialog and is never visible to Marky McMarkface.
+            Selecting <strong>Deny</strong> leaves the saved connection unchanged.
+          </p>
+        </div>
+
+        {failure && <p className="failure">{failure}</p>}
+
+        <button className="btn primary large" disabled={busy !== null} onClick={() => void unlock()}>
+          {busy === 'unlock' ? 'Waiting for macOS…' : 'Continue to macOS'}
+        </button>
+        <button className="btn link danger" disabled={busy !== null} onClick={() => void forget()}>
+          {busy === 'forget' ? 'Removing…' : 'Forget saved connection'}
+        </button>
+        <p className="status-line">Forgetting it locally does not revoke access on GitHub.</p>
+      </div>
     </div>
   );
 }
 
 /**
- * One-time bootstrap, for whoever sets up this copy of Pilcrow.
+ * One-time bootstrap, for whoever sets up this copy of Marky McMarkface.
  *
  * This screen should not exist for most people. GitHub has no Dynamic Client Registration — the
  * mechanism that lets Claude's connectors register themselves — so a client ID has to come from
@@ -185,7 +389,7 @@ function Mark({ animate }: { animate: boolean }) {
  * project's ID is committed, nobody sees this screen again.
  *
  * The client secret is optional on purpose. With it you get one-click sign-in; without it,
- * Pilcrow uses device flow, which needs no secret — so a fork can ship a working default without
+ * Marky McMarkface uses device flow, which needs no secret — so a fork can ship a working default without
  * committing a credential at all.
  */
 function Bootstrap({
@@ -219,9 +423,9 @@ function Bootstrap({
     <div className="stage">
       <div className="stage-inner">
         <Mark animate={false} />
-        <h1 className="wordmark">Set up Pilcrow</h1>
+        <h1 className="wordmark">Set up Marky McMarkface</h1>
         <p className="lede">
-          Once per installation. Register Pilcrow with GitHub, paste the ID back here, and you're
+          Once per installation. Register Marky McMarkface with GitHub, paste the ID back here, and you're
           done — for good.
         </p>
 
@@ -365,7 +569,7 @@ function DeviceCode({ onCancel }: { onCancel: () => void }) {
     <div className="stage">
       <div className="stage-inner">
         <Mark animate={!expired && device !== null} />
-        <h1 className="wordmark">Pilcrow</h1>
+        <h1 className="wordmark">Marky McMarkface</h1>
 
         {failure && <p className="failure">{failure}</p>}
 

@@ -20,7 +20,7 @@
  *   pnpm spike:anchoring [--repos a/b,c/d] [--files 60] [--samples 25]
  */
 import { JSDOM } from 'jsdom';
-import { offsetToLine } from '@pilcrow/viewer-api';
+import { offsetToLine } from '@marky-mcmarkface/viewer-api';
 import { parseMarkdown, normaliseSource } from '../src/parse.js';
 import { renderToHtml } from '../src/render.js';
 import { describeRange, anchorRange, __internals } from '../src/anchoring.js';
@@ -124,8 +124,8 @@ function groundTruth(root: Element, range: Range, source: string, texts: Text[])
  * a harness that cannot fail is not measuring anything. Used by `--corrupt=N`.
  */
 function corruptStamps(html: string, shift: number): string {
-  return html.replace(/data-pilcrow-pos="(\d+):(\d+)"/g, (_m, s: string, e: string) =>
-    `data-pilcrow-pos="${Number(s) + shift}:${Number(e) + shift}"`,
+  return html.replace(/data-marky-mcmarkface-pos="(\d+):(\d+)"/g, (_m, s: string, e: string) =>
+    `data-marky-mcmarkface-pos="${Number(s) + shift}:${Number(e) + shift}"`,
   );
 }
 
@@ -220,7 +220,7 @@ async function main() {
   const seed = Number(arg('seed', '20260730'));
   const corrupt = Number(arg('corrupt', '0'));
 
-  console.log(`\npilcrow Phase 0 — anchoring gate`);
+  console.log(`\nmarky-mcmarkface Phase 0 — anchoring gate`);
   console.log(`repos=${repos.join(', ')} files<=${files}/repo samples=${samples}/file seed=${seed}`);
   if (corrupt) console.log(`FAULT INJECTION: stamps shifted by ${corrupt} chars — this run MUST fail`);
   console.log('');

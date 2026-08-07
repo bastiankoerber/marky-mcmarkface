@@ -1,7 +1,8 @@
 {
-  "name": "@pilcrow/host",
+  "name": "@marky-mcmarkface/host",
   "version": "0.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,9 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@pilcrow/viewer-api": "workspace:*",
-    "@pilcrow/viewer-markdown": "workspace:*",
-    "@pilcrow/viewer-source-diff": "workspace:*",
+    "@marky-mcmarkface/viewer-api": "workspace:*",
+    "@marky-mcmarkface/viewer-markdown": "workspace:*",
+    "@marky-mcmarkface/viewer-source-diff": "workspace:*",
     "picomatch": "^4.0.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
@@ -22,6 +23,6 @@
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.5",
-    "@pilcrow/server": "workspace:*"
+    "@marky-mcmarkface/server": "workspace:*"
   }
 }

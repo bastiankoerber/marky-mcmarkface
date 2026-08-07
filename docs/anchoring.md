@@ -1,6 +1,6 @@
 # Anchoring
 
-Pilcrow's premise is that you select rendered prose and a review comment lands on the right
+Marky McMarkface's premise is that you select rendered prose and a review comment lands on the right
 source line. This document is about how that is done and how it is checked.
 
 ## The problem
@@ -20,13 +20,13 @@ the DOM as it emits it:
 
 | Attribute | Meaning |
 |---|---|
-| `data-pilcrow-pos-<nonce>="<start>:<end>"` | source char span, on every element |
-| `data-pilcrow-x` | this element's text maps 1:1 onto `source[start..end]` |
-| `data-pilcrow-change` | `added` / `removed` / `changed`, on top-level blocks |
-| `data-pilcrow-nonce` | on the host-rendered root; the key to the position attribute |
+| `data-marky-mcmarkface-pos-<nonce>="<start>:<end>"` | source char span, on every element |
+| `data-marky-mcmarkface-x` | this element's text maps 1:1 onto `source[start..end]` |
+| `data-marky-mcmarkface-change` | `added` / `removed` / `changed`, on top-level blocks |
+| `data-marky-mcmarkface-nonce` | on the host-rendered root; the key to the position attribute |
 
 **The nonce is a security control, not a naming quirk.** `data-` attributes survive
-sanitisation, so a pull request author can write `data-pilcrow-pos` themselves and steer where
+sanitisation, so a pull request author can write `data-marky-mcmarkface-pos` themselves and steer where
 your comment lands. A per-render token they cannot predict makes forged stamps unreadable. Tests
 and the spike render without one and see the bare attribute name.
 
@@ -40,7 +40,7 @@ Two design decisions do most of the work:
 decoded value inside the raw source it came from — that is what strips the backticks from
 `` `code` `` and the fences from a code block. When the value was transformed during parsing (a
 backslash escape, a character entity) the lookup fails, and the leaf is stamped *without*
-`data-pilcrow-x`. Anchoring then degrades to element granularity. A wider highlight is a UI
+`data-marky-mcmarkface-x`. Anchoring then degrades to element granularity. A wider highlight is a UI
 compromise; a wrong offset is a wrong review comment.
 
 **Diff marks split stamped leaves rather than wrapping regions.** When a word is marked as

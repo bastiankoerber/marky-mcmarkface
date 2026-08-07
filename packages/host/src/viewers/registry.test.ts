@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { defineViewer, BUILTIN_RANK, type ViewerManifest } from '@pilcrow/viewer-api';
+import { defineViewer, BUILTIN_RANK, type ViewerManifest } from '@marky-mcmarkface/viewer-api';
 import { ViewerRegistry } from './registry.js';
 
 function viewer(id: string, patterns: string[], extra: Partial<ViewerManifest> = {}) {
@@ -15,14 +15,14 @@ function viewer(id: string, patterns: string[], extra: Partial<ViewerManifest> =
   });
 }
 
-const markdown = viewer('pilcrow.markdown', ['**/*.md', '**/*.mdx'], { rank: BUILTIN_RANK });
-const sourceDiff = viewer('pilcrow.source-diff', ['**/*'], { rank: 9000 });
+const markdown = viewer('marky-mcmarkface.markdown', ['**/*.md', '**/*.mdx'], { rank: BUILTIN_RANK });
+const sourceDiff = viewer('marky-mcmarkface.source-diff', ['**/*'], { rank: 9000 });
 
 describe('ViewerRegistry', () => {
   it('resolves by glob and prefers the lower rank', () => {
     const r = new ViewerRegistry().registerAll([sourceDiff, markdown]);
-    expect(r.resolve('docs/intro.md')?.manifest.id).toBe('pilcrow.markdown');
-    expect(r.resolve('src/main.go')?.manifest.id).toBe('pilcrow.source-diff');
+    expect(r.resolve('docs/intro.md')?.manifest.id).toBe('marky-mcmarkface.markdown');
+    expect(r.resolve('src/main.go')?.manifest.id).toBe('marky-mcmarkface.source-diff');
   });
 
   it('never dead-ends, because source-diff claims everything', () => {
@@ -41,14 +41,14 @@ describe('ViewerRegistry', () => {
     const spec = viewer('spec', ['**/docs/**/*.md'], { rank: 50 });
     const r = new ViewerRegistry().registerAll([markdown, spec]);
     expect(r.resolve('docs/guide/intro.md')?.manifest.id).toBe('spec');
-    expect(r.resolve('README.md')?.manifest.id).toBe('pilcrow.markdown');
+    expect(r.resolve('README.md')?.manifest.id).toBe('marky-mcmarkface.markdown');
   });
 
   it('never auto-opens a priority:option viewer, but still offers it', () => {
     const raw = viewer('raw', ['**/*.md'], { rank: 1, priority: 'option' });
     const r = new ViewerRegistry().registerAll([raw, markdown]);
-    expect(r.resolve('a.md')?.manifest.id).toBe('pilcrow.markdown');
-    expect(r.candidates('a.md').map((v) => v.manifest.id)).toEqual(['raw', 'pilcrow.markdown']);
+    expect(r.resolve('a.md')?.manifest.id).toBe('marky-mcmarkface.markdown');
+    expect(r.candidates('a.md').map((v) => v.manifest.id)).toEqual(['raw', 'marky-mcmarkface.markdown']);
   });
 
   it('honours a user override, including over an option-priority viewer', () => {
@@ -57,13 +57,13 @@ describe('ViewerRegistry', () => {
     r.setOverride('a.md', 'raw');
     expect(r.resolve('a.md')?.manifest.id).toBe('raw');
     r.setOverride('a.md', null);
-    expect(r.resolve('a.md')?.manifest.id).toBe('pilcrow.markdown');
+    expect(r.resolve('a.md')?.manifest.id).toBe('marky-mcmarkface.markdown');
   });
 
   it('ignores an override whose viewer does not claim the path', () => {
     const r = new ViewerRegistry().registerAll([markdown, sourceDiff]);
-    r.setOverride('main.go', 'pilcrow.markdown');
-    expect(r.resolve('main.go')?.manifest.id).toBe('pilcrow.source-diff');
+    r.setOverride('main.go', 'marky-mcmarkface.markdown');
+    expect(r.resolve('main.go')?.manifest.id).toBe('marky-mcmarkface.source-diff');
   });
 
   it('breaks rank ties by registration order, so resolution is deterministic', () => {

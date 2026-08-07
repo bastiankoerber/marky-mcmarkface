@@ -1,5 +1,5 @@
 name: Bug report
-description: Something in Pilcrow behaves wrongly
+description: Something in Marky McMarkface behaves wrongly
 labels: [bug]
 body:
   - type: textarea
@@ -47,4 +47,4 @@ body:
       value: |
         - macOS version:
         - Node version (`node -v`):
-        - Pilcrow version or commit:
+        - Marky McMarkface version or commit:

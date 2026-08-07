@@ -1,11 +1,11 @@
 # Configuration reference
 
-Install the agent with `brew install pilcrow`, then point it at a cluster. The `--profile` flag
+Install the agent with `brew install marky-mcmarkface`, then point it at a cluster. The `--profile` flag
 selects a stored connection, and `--json` switches the output to machine-readable form.
 
 ```bash
-pilcrow connect --profile production
-pilcrow review --repo owner/name --pull 482
+marky-mcmarkface connect --profile production
+marky-mcmarkface review --repo owner/name --pull 482
 ```
 
 ## Properties

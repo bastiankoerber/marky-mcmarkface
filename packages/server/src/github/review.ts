@@ -1,4 +1,4 @@
-import type { Side } from '@pilcrow/viewer-api';
+import type { Side } from '@marky-mcmarkface/viewer-api';
 import type { GitHubClient } from './client.js';
 
 /**

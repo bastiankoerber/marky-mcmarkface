@@ -1,5 +1,5 @@
 const API = 'https://api.github.com';
-const UA = 'pilcrow/0.1';
+const UA = 'marky-mcmarkface/0.1';
 
 /**
  * Thin GitHub client over fetch.

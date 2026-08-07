@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 export type ThemePref = 'light' | 'dark' | 'system';
 export type Theme = 'light' | 'dark';
 
-const KEY = 'pilcrow.theme';
+const KEY = 'marky-mcmarkface.theme';
 
 export function readThemePref(): ThemePref {
   try {

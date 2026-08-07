@@ -1,5 +1,5 @@
 import picomatch from 'picomatch';
-import { DEFAULT_RANK, type ViewerPlugin, type ViewerManifest } from '@pilcrow/viewer-api';
+import { DEFAULT_RANK, type ViewerPlugin, type ViewerManifest } from '@marky-mcmarkface/viewer-api';
 
 /**
  * File path -> viewer resolution.

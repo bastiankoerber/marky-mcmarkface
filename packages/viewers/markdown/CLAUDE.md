@@ -1,4 +1,4 @@
-# `@pilcrow/viewer-markdown`
+# `@marky-mcmarkface/viewer-markdown`
 
 The built-in viewer, and the reference implementation of the anchoring contract.
 
@@ -7,7 +7,7 @@ The built-in viewer, and the reference implementation of the anchoring contract.
 **1. Never emit an offset you cannot verify.**
 
 `exactSpan()` locates a leaf's decoded value inside the raw source it was parsed from. When that
-fails — a backslash escape, a character entity — the leaf is stamped **without** `data-pilcrow-x`
+fails — a backslash escape, a character entity — the leaf is stamped **without** `data-marky-mcmarkface-x`
 and anchoring degrades to element granularity. That degradation is correct. An offset that is
 quietly three characters off is not, and nothing downstream can detect it.
 
@@ -25,11 +25,11 @@ which is why it works identically on a server-rendered string and a live React t
 
 **4. The position attribute is nonced. Do not un-nonce it.**
 
-`data-` attributes survive DOMPurify, so a pull request author can write `data-pilcrow-pos`
+`data-` attributes survive DOMPurify, so a pull request author can write `data-marky-mcmarkface-pos`
 themselves — and did, in testing: highlighting *"This release only fixes typos."* produced a
 comment quoting an unrelated sentence about vendor access. The renderer therefore emits
-`data-pilcrow-pos-<nonce>` with a per-render token minted in `MarkdownViewer.tsx`, carried on the
-root as `data-pilcrow-nonce` (outside the sanitised HTML), and `anchoring.ts` derives the
+`data-marky-mcmarkface-pos-<nonce>` with a per-render token minted in `MarkdownViewer.tsx`, carried on the
+root as `data-marky-mcmarkface-nonce` (outside the sanitised HTML), and `anchoring.ts` derives the
 attribute name from it. `integrity.test.ts` covers both directions, including a control that
 reproduces the attack with the nonce removed.
 
@@ -46,10 +46,10 @@ both, or the tests stop testing what ships.
 
 | Attribute | Meaning |
 |---|---|
-| `data-pilcrow-pos-<nonce>="<start>:<end>"` | source char span, on every element (bare name only without a nonce) |
-| `data-pilcrow-x` | this element's text maps 1:1 onto `source[start..end]` |
-| `data-pilcrow-change` | `added` / `removed` / `changed`, top-level blocks only |
-| `data-pilcrow-nonce` | on the root, host-rendered — the key to the position attribute |
+| `data-marky-mcmarkface-pos-<nonce>="<start>:<end>"` | source char span, on every element (bare name only without a nonce) |
+| `data-marky-mcmarkface-x` | this element's text maps 1:1 onto `source[start..end]` |
+| `data-marky-mcmarkface-change` | `added` / `removed` / `changed`, top-level blocks only |
+| `data-marky-mcmarkface-nonce` | on the root, host-rendered — the key to the position attribute |
 
 ## After any change here
 

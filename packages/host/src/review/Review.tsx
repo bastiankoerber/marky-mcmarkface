@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { offsetToLine, quoteFor, type AnchoringImpl, type SourceRange, type ViewerHost } from '@pilcrow/viewer-api';
+import { offsetToLine, quoteFor, type AnchoringImpl, type SourceRange, type ViewerHost } from '@marky-mcmarkface/viewer-api';
 import { api, type PrDetail, type ReviewEvent } from '../api.js';
 import { createRegistry } from '../viewers/index.js';
 import { Loading } from '../Loading.jsx';
@@ -215,7 +215,7 @@ export function Review({
     void railTick;
     const impl = anchoringRef.current;
     const container = impl?.contentContainer();
-    const scroller = container?.closest('[data-pilcrow-scroll]') ?? null;
+    const scroller = container?.closest('[data-marky-mcmarkface-scroll]') ?? null;
 
     /*
      * Where a card sits, in the scroll container's own content space.
@@ -311,7 +311,7 @@ export function Review({
    * 9000 and nothing beats it, not because of a special case here. A contributed viewer with a
    * lower rank now wins, which is what `docs/writing-a-viewer.md` promises.
    */
-  const sourceDiff = registry.get('pilcrow.source-diff')?.plugin.component as
+  const sourceDiff = registry.get('marky-mcmarkface.source-diff')?.plugin.component as
     | React.ComponentType<Record<string, unknown>>
     | undefined;
   const resolved = file ? registry.resolve(file.path) : undefined;
@@ -389,7 +389,7 @@ export function Review({
           window edge, and cards cannot drift out of step with the text because there is only one
           thing scrolling.
         */}
-        <div className="reading-area" data-pilcrow-scroll="">
+        <div className="reading-area" data-marky-mcmarkface-scroll="">
           <main className="doc-pane">
             {!file ? (
               <p className="muted">Select a file.</p>

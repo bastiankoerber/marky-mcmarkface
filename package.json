@@ -1,6 +1,9 @@
 {
-  "name": "pilcrow",
+  "name": "marky-mcmarkface",
   "private": true,
+  "license": "MIT",
+  "author": "Bastian Körber",
+  "repository": "github:bastiankoerber/marky-mcmarkface",
   "type": "module",
   "packageManager": "pnpm@10.32.1",
   "engines": {
@@ -11,16 +14,29 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "dev": "node scripts/dev.mjs",
-    "build": "pnpm -C packages/host build"
+    "build": "pnpm -C packages/host build",
+    "desktop:build": "pnpm build && pnpm -C packages/desktop build",
+    "desktop:run": "pnpm desktop:build && pnpm -C packages/desktop runtime:install && pnpm -C packages/desktop start",
+    "desktop:package": "pnpm desktop:build && pnpm -C packages/desktop package",
+    "desktop:make": "pnpm desktop:build && pnpm -C packages/desktop make",
+    "notices": "node scripts/generate-third-party-notices.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.10"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [],
+    "overrides": {
+      "@electron/rebuild>tar": "7.5.21",
+      "@electron/node-gyp>tar": "7.5.21",
+      "cacache>tar": "7.5.21",
+      "external-editor>tmp": "0.2.7"
+    },
+    "onlyBuiltDependencies": [
+      "electron"
+    ],
     "ignoredBuiltDependencies": [
       "esbuild"
     ]

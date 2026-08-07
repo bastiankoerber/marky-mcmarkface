@@ -64,7 +64,7 @@ describe('draftStore', () => {
   });
 
   it('survives a corrupt store instead of taking the review screen down', () => {
-    map.set('pilcrow.drafts.v1', '{not json');
+    map.set('marky-mcmarkface.drafts.v1', '{not json');
     expect(loadDrafts('o', 'r', 7, 'abc')).toEqual({ buffer: null, stale: 0 });
   });
 });

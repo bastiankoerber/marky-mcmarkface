@@ -1,4 +1,4 @@
-# `@pilcrow/viewer-api`
+# `@marky-mcmarkface/viewer-api`
 
 **This package is published and implemented by third parties. Changing an exported type is a
 breaking change.** Treat every `export` here as public API, including the shape of

@@ -1,4 +1,4 @@
-# Contributing to Pilcrow
+# Contributing to Marky McMarkface
 
 Thanks for looking. The most valuable contribution is usually a **new viewer** — see
 [docs/writing-a-viewer.md](docs/writing-a-viewer.md); a first one is about fifty lines.
@@ -7,9 +7,10 @@ Thanks for looking. The most valuable contribution is usually a **new viewer** �
 
 ```bash
 git clone <your fork>
-cd pilcrow
+cd marky-mcmarkface
 pnpm install
 pnpm dev          # API on 127.0.0.1:7423, UI on localhost:5180
+pnpm desktop:run  # build and open the Electron desktop application
 ```
 
 macOS, Node 20.19+, pnpm 10+.
@@ -19,8 +20,8 @@ no configuration at all and is the fastest path. If you don't, the setup screen 
 registering a one-off OAuth app (about a minute, once per machine); this repository does not ship
 a client ID. See [Connecting](README.md#connecting).
 
-`@napi-rs/keyring` is an optional dependency. If it will not build on your machine, Pilcrow falls
-back to `~/.pilcrow/token.json` at mode 0600 and says so on startup.
+`@napi-rs/keyring` is an optional dependency. If it will not build on your machine, Marky McMarkface falls
+back to `~/.marky-mcmarkface/token.json` at mode 0600 and says so on startup.
 
 There is no linter or formatter — don't go looking for a config. Match the surrounding code.
 
@@ -30,9 +31,10 @@ There is no linter or formatter — don't go looking for a config. Match the sur
 npx tsc --noEmit -p tsconfig.json
 pnpm vitest run          # five suites; `pnpm test` is the same thing
 pnpm build
+pnpm desktop:build
 ```
 
-And if you touched the renderer, anchoring, or anything emitting `data-pilcrow-*`:
+And if you touched the renderer, anchoring, or anything emitting `data-marky-mcmarkface-*`:
 
 ```bash
 pnpm spike:anchoring --offline
@@ -40,6 +42,12 @@ pnpm spike:anchoring --offline --corrupt 7   # this one must FAIL
 ```
 
 CI runs all of these.
+
+## Licensing your contribution
+
+By submitting a contribution, you certify that you have the right to submit it and agree that it
+is licensed under the repository's [MIT License](LICENSE). Do not contribute employer-owned,
+confidential, or third-party material unless you are authorised to release it under those terms.
 
 ## The one rule
 
@@ -50,7 +58,7 @@ If a change makes a viewer import GitHub types, it is going the wrong way.
 
 ## What the gate is protecting
 
-Pilcrow's whole premise is that you select rendered prose and a comment lands on the right source
+Marky McMarkface's whole premise is that you select rendered prose and a comment lands on the right source
 line. That mapping has no visible failure mode — a comment three characters off looks exactly
 like a comment that is correct, until a reviewer is confused by it weeks later.
 

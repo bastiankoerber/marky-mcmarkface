@@ -1,6 +1,6 @@
 # Writing a viewer
 
-Pilcrow renders each changed file with a **viewer**. Markdown gets the rendered rich diff;
+Marky McMarkface renders each changed file with a **viewer**. Markdown gets the rendered rich diff;
 everything else falls back to a source diff. Viewers are the extension point: add one for
 Mermaid, BPMN, CSV, AsciiDoc, notebooks, OpenAPI — whatever you review that deserves better than
 a wall of `+` and `−`.
@@ -25,8 +25,8 @@ posting the review — stays in the host.
 Create `packages/viewers/csv/`:
 
 ```tsx
-import { defineViewer } from '@pilcrow/viewer-api';
-import type { ViewerProps } from '@pilcrow/viewer-api';
+import { defineViewer } from '@marky-mcmarkface/viewer-api';
+import type { ViewerProps } from '@marky-mcmarkface/viewer-api';
 
 export function CsvViewer({ file }: ViewerProps) {
   const rows = (file.head ?? '').split('\n').map((line) => line.split(','));
@@ -43,7 +43,7 @@ export function CsvViewer({ file }: ViewerProps) {
 
 export default defineViewer({
   manifest: {
-    id: 'pilcrow.csv',
+    id: 'marky-mcmarkface.csv',
     displayName: 'Table',
     selector: [{ filenamePattern: '**/*.csv' }],
     capabilities: {
@@ -62,7 +62,7 @@ get their own chunk:
 ```ts
 const csv = defineViewer({
   manifest: { /* as above */ },
-  component: lazy(async () => ({ default: (await import('@pilcrow/viewer-csv/src/CsvViewer.js')).CsvViewer })),
+  component: lazy(async () => ({ default: (await import('@marky-mcmarkface/viewer-csv/src/CsvViewer.js')).CsvViewer })),
 });
 
 export const builtinViewers = [markdown, csv, sourceDiff];
@@ -106,8 +106,8 @@ Two rules:
 2. **Degrade in width, never in position.** If you can only locate the enclosing block, return
    the block's span. A wider highlight is a UI compromise; a wrong one is a wrong review comment.
 
-The markdown viewer does this by stamping `data-pilcrow-pos="<start>:<end>"` on every element
-during render, plus `data-pilcrow-x` when that element's text maps 1:1 onto the source. See
+The markdown viewer does this by stamping `data-marky-mcmarkface-pos="<start>:<end>"` on every element
+during render, plus `data-marky-mcmarkface-x` when that element's text maps 1:1 onto the source. See
 `packages/viewers/markdown/src/render.ts` — the technique generalises to any format you render
 yourself.
 
@@ -136,7 +136,7 @@ good contribution in its own right.
 
 | Field | Meaning |
 |---|---|
-| `id` | Stable unique id, e.g. `pilcrow.csv`. |
+| `id` | Stable unique id, e.g. `marky-mcmarkface.csv`. |
 | `displayName` | Shown to the reader. Required. |
 | `selector` | picomatch globs, not bare extensions. `**/docs/**/*.md` claims only docs. |
 | `rank` | Lower wins. Builtins 100, contributions default 500. Source-diff sits at 9000. |

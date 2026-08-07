@@ -1,7 +1,7 @@
 {
-  "name": "@pilcrow/viewer-api",
+  "name": "@marky-mcmarkface/viewer-api",
   "version": "0.0.0",
-  "description": "Stable contract for pilcrow viewer plugins. Types plus a handful of pure helpers.",
+  "description": "Stable contract for marky-mcmarkface viewer plugins. Types plus a handful of pure helpers.",
   "type": "module",
   "license": "MIT",
   "main": "./src/index.ts",
@@ -10,7 +10,7 @@
     ".": "./src/index.ts"
   },
   "files": ["dist", "src"],
-  "keywords": ["pilcrow", "pilcrow-plugin"],
+  "keywords": ["marky-mcmarkface", "marky-mcmarkface-plugin"],
   "peerDependencies": {
     "react": ">=18"
   },

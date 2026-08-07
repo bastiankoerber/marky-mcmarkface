@@ -3,8 +3,9 @@ import react from '@vitejs/plugin-react';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { browserSecurityHeaders } from '../server/src/security-policy.js';
 
-const SERVER = `http://127.0.0.1:${process.env.PILCROW_PORT ?? 7423}`;
+const SERVER = `http://127.0.0.1:${process.env.MARKY_MCMARKFACE_PORT ?? 7423}`;
 
 /**
  * In development the UI is served by Vite, so it cannot receive the launch key the way the
@@ -16,7 +17,7 @@ const SERVER = `http://127.0.0.1:${process.env.PILCROW_PORT ?? 7423}`;
  */
 function launchKey(): string {
   try {
-    return readFileSync(join(homedir(), '.pilcrow', 'session'), 'utf8').trim();
+    return readFileSync(join(homedir(), '.marky-mcmarkface', 'session'), 'utf8').trim();
   } catch {
     return '';
   }
@@ -27,6 +28,9 @@ export default defineConfig({
   server: {
     port: 5180,
     strictPort: true,
+    // The UI renders hostile pull request content in development too. Without these headers,
+    // an external image in a private PR becomes a read receipt even though production blocks it.
+    headers: browserSecurityHeaders(true),
     // Dev only. In production the Hono server serves these assets itself, so there is one
     // origin and no proxy at all.
     proxy: {
@@ -36,7 +40,7 @@ export default defineConfig({
         configure: (proxy) => {
           proxy.on('proxyReq', (proxyReq) => {
             const key = launchKey();
-            if (key) proxyReq.setHeader('X-Pilcrow', key);
+            if (key) proxyReq.setHeader('X-Marky-McMarkface', key);
           });
         },
       },

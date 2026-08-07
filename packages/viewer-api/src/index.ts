@@ -1,5 +1,5 @@
 /**
- * @pilcrow/viewer-api — the contract between the pilcrow host and a viewer plugin.
+ * @marky-mcmarkface/viewer-api — the contract between the marky-mcmarkface host and a viewer plugin.
  *
  * The one rule this package exists to enforce: a viewer renders a file and reports
  * *source character offsets*. It never learns about GitHub, diff hunks, `side: LEFT|RIGHT`
@@ -81,7 +81,7 @@ export interface ViewerCapabilities {
  * file -> viewer table at startup at zero cost.
  */
 export interface ViewerManifest {
-  /** Stable unique id, e.g. "pilcrow.markdown". */
+  /** Stable unique id, e.g. "marky-mcmarkface.markdown". */
   id: string;
   displayName: string;
   /** picomatch globs, not bare extensions — lets a viewer claim `**\/docs/**\/*.md` alone. */

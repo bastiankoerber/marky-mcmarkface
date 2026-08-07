@@ -1,9 +1,9 @@
-import type { Side, SourceRange } from '@pilcrow/viewer-api';
+import type { Side, SourceRange } from '@marky-mcmarkface/viewer-api';
 
 /**
  * describe() / anchor() for the built-in markdown viewer.
  *
- * Everything here reads only the `data-pilcrow-pos` / `data-pilcrow-x` stamps that render.ts emitted,
+ * Everything here reads only the `data-marky-mcmarkface-pos` / `data-marky-mcmarkface-x` stamps that render.ts emitted,
  * so it never needs the mdast tree at runtime and works the same on a server-rendered string as
  * on a live React tree.
  */
@@ -25,8 +25,8 @@ interface Stamp {
  * anchoring spike working, which render without a nonce.
  */
 function posAttrFor(root: Element): string {
-  const nonce = root.getAttribute('data-pilcrow-nonce');
-  return nonce ? `data-pilcrow-pos-${nonce}` : 'data-pilcrow-pos';
+  const nonce = root.getAttribute('data-marky-mcmarkface-nonce');
+  return nonce ? `data-marky-mcmarkface-pos-${nonce}` : 'data-marky-mcmarkface-pos';
 }
 
 function readStamp(el: Element, posAttr: string): Stamp | null {
@@ -37,7 +37,7 @@ function readStamp(el: Element, posAttr: string): Stamp | null {
   const start = Number(raw.slice(0, sep));
   const end = Number(raw.slice(sep + 1));
   if (!Number.isFinite(start) || !Number.isFinite(end)) return null;
-  return { el, start, end, exact: el.hasAttribute('data-pilcrow-x') };
+  return { el, start, end, exact: el.hasAttribute('data-marky-mcmarkface-x') };
 }
 
 function closestStamp(node: Node, root: Element): Stamp | null {
