@@ -3,6 +3,7 @@ import { api, type AuthStatus, type DeviceStart } from '../api.js';
 import { Loading } from '../Loading.jsx';
 import { BrandIcon } from '../BrandIcon.jsx';
 import { authPhaseAfterBootstrap } from './bootstrap-policy.js';
+import { preferredConnection } from './connection-policy.js';
 
 /**
  * First run.
@@ -76,6 +77,8 @@ export function Connect({
     return <GitHubAccess onCancel={() => setPhase('idle')} onContinue={() => void openGitHub()} />;
   }
 
+  const preferred = preferredConnection(status);
+
   return (
     <div className="stage">
       <div className="stage-inner">
@@ -85,15 +88,11 @@ export function Connect({
 
         {phase === 'leaving' ? (
           <p className="status-line">Opening GitHub…</p>
-        ) : status.oauthConfigured ? (
+        ) : preferred === 'oauth' ? (
           <button className="btn primary large" onClick={() => setPhase('access')}>
             Connect GitHub
           </button>
-        ) : status.deviceFlowConfigured ? (
-          <button className="btn primary large" onClick={() => setPhase('device')}>
-            Connect GitHub
-          </button>
-        ) : status.gh.loggedIn ? (
+        ) : preferred === 'gh-cli' ? (
           <>
             <button className="btn primary large" onClick={() => void run(api.connectGh)}>
               Continue as @{status.gh.login}
@@ -103,11 +102,18 @@ export function Connect({
               authorisation you already granted, with nothing to register. Calling the secondary
               option "set up" implied the primary one was a stopgap.
             */}
-            <button className="btn link" onClick={() => setPhase('bootstrap')}>
-              Use a browser sign-in instead
+            <button
+              className="btn link"
+              onClick={() => setPhase(status.deviceFlowConfigured ? 'device' : 'bootstrap')}
+            >
+              Use a GitHub code instead
             </button>
           </>
-        ) : status.gh.available ? (
+        ) : preferred === 'device' ? (
+          <button className="btn primary large" onClick={() => setPhase('device')}>
+            Connect GitHub
+          </button>
+        ) : preferred === 'gh-login' ? (
           /*
              `gh` is installed but signed out. One command fixes that, and it is a far smaller
              ask than registering an OAuth application — which is where this branch used to send
