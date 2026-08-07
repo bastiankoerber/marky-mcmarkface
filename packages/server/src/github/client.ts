@@ -26,6 +26,46 @@ export class GitHubError extends Error {
   }
 }
 
+function requiresSso(res: Response): boolean {
+  return res.headers.get('x-github-sso')?.toLowerCase().includes('required') ?? false;
+}
+
+function isRateLimited(res: Response): boolean {
+  return (
+    res.status === 429 ||
+    res.headers.has('retry-after') ||
+    (res.status === 403 && res.headers.get('x-ratelimit-remaining') === '0')
+  );
+}
+
+/** Fixed, user-safe explanations: never relay a possibly credential-bearing upstream body. */
+export function githubRejectionMessage(res: Response): string {
+  if (res.status === 401) return 'GitHub rejected the saved token. It may be expired or revoked; reconnect GitHub.';
+  if (res.status === 403 && requiresSso(res)) {
+    return 'GitHub requires SAML SSO authorization for this token or OAuth app. Authorize it for your organisation, then reconnect.';
+  }
+  if (isRateLimited(res)) return 'GitHub rate limit reached.';
+  if (res.status === 403) {
+    return 'GitHub denied access. Your organisation may require app or token approval, SAML SSO authorization, or additional repository permissions.';
+  }
+  return `GitHub request failed (${res.status}).`;
+}
+
+function githubResponseError(res: Response, body?: unknown): GitHubError {
+  return new GitHubError(res.status, githubRejectionMessage(res), body);
+}
+
+export function githubGraphqlErrorMessage(errors: Array<{ message: string; type?: string }>): string {
+  const denied = errors.some(
+    (error) =>
+      error.type?.toUpperCase() === 'FORBIDDEN' ||
+      /resource not accessible|not authorized|saml|single sign-on|sso/i.test(error.message),
+  );
+  return denied
+    ? 'GitHub denied access to pull-request data. Your organisation may require app or token approval, SAML SSO authorization, or additional repository permissions.'
+    : 'GitHub could not load pull-request data.';
+}
+
 interface CacheEntry {
   etag: string;
   data: unknown;
@@ -104,11 +144,10 @@ export class GitHubClient {
     this.#readRate(res);
 
     if (res.status === 304 && cached) return cached.data as T;
-    if (res.status === 403 || res.status === 429) {
-      this.#noteBlocked(res);
-      throw new GitHubError(res.status, 'GitHub rate limit reached', await safeBody(res));
+    if (!res.ok) {
+      if (isRateLimited(res)) this.#noteBlocked(res);
+      throw githubResponseError(res, await safeBody(res));
     }
-    if (!res.ok) throw new GitHubError(res.status, `GET ${path} failed (${res.status})`, await safeBody(res));
 
     const data = opts.accept === 'application/vnd.github.raw' ? ((await res.text()) as unknown as T) : ((await res.json()) as T);
     const etag = res.headers.get('etag');
@@ -125,11 +164,10 @@ export class GitHubClient {
     if (body !== undefined) init.body = JSON.stringify(body);
     const res = await fetch(`${API}${path}`, init);
     this.#readRate(res);
-    if (res.status === 403 || res.status === 429) {
-      this.#noteBlocked(res);
-      throw new GitHubError(res.status, 'GitHub rate limit reached', await safeBody(res));
+    if (!res.ok) {
+      if (isRateLimited(res)) this.#noteBlocked(res);
+      throw githubResponseError(res, await safeBody(res));
     }
-    if (!res.ok) throw new GitHubError(res.status, `${method} ${path} failed (${res.status})`, await safeBody(res));
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
@@ -146,13 +184,13 @@ export class GitHubClient {
       body: JSON.stringify({ query, variables }),
     });
     this.#readRate(res);
-    if (res.status === 403 || res.status === 429) {
-      this.#noteBlocked(res);
-      throw new GitHubError(res.status, 'GitHub rate limit reached');
+    if (!res.ok) {
+      if (isRateLimited(res)) this.#noteBlocked(res);
+      throw githubResponseError(res);
     }
     const body = (await res.json()) as { data?: T; errors?: Array<{ message: string; type?: string }> };
     if (body.errors?.length) {
-      throw new GitHubError(res.status, body.errors.map((e) => e.message).join('; '), body.errors);
+      throw new GitHubError(res.status, githubGraphqlErrorMessage(body.errors), body.errors);
     }
     if (!body.data) throw new GitHubError(res.status, 'GraphQL returned no data');
     return body.data;
@@ -168,11 +206,10 @@ export class GitHubClient {
     const res = await fetch(url, { headers });
     this.#readRate(res);
     if (res.status === 304 && cached) return { data: cached.data as T, headers: res.headers, status: 304 };
-    if (res.status === 403 || res.status === 429) {
-      this.#noteBlocked(res);
-      throw new GitHubError(res.status, 'GitHub rate limit reached');
+    if (!res.ok) {
+      if (isRateLimited(res)) this.#noteBlocked(res);
+      throw githubResponseError(res);
     }
-    if (!res.ok) throw new GitHubError(res.status, `GET ${path} failed (${res.status})`);
 
     const data = (await res.json()) as T;
     const etag = res.headers.get('etag');

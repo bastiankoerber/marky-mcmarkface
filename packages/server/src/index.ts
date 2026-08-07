@@ -29,6 +29,7 @@ import {
   type StoredToken,
 } from './auth/keychain.js';
 import { ghStatus, ghToken } from './auth/gh-cli.js';
+import { TokenValidationError, tokenRejection } from './auth/token-validation.js';
 import { requestDeviceCode, pollForToken, revokeGrant, clientId, DeviceFlowError, type DeviceCode } from './auth/device-flow.js';
 import {
   beginFlow,
@@ -68,15 +69,32 @@ let locked = false;
 let deviceInFlight: { device: DeviceCode; abort: AbortController } | null = null;
 
 async function identifyToken(token: string, source: StoredToken['source']): Promise<StoredToken> {
-  const res = await fetch('https://api.github.com/user', {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'marky-mcmarkface' },
-  });
-  if (!res.ok) throw new Error(`GitHub rejected this token (${res.status}).`);
-  const user = (await res.json()) as { login: string; avatar_url?: string };
+  let res: Response;
+  try {
+    res = await fetch('https://api.github.com/user', {
+      headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'marky-mcmarkface' },
+    });
+  } catch {
+    throw new TokenValidationError(
+      502,
+      'Could not reach GitHub to validate the token. Check your internet connection, VPN, proxy, or firewall.',
+    );
+  }
+  if (!res.ok) throw tokenRejection(res.status, res.headers);
+
+  let user: { login?: unknown; avatar_url?: unknown };
+  try {
+    user = (await res.json()) as { login?: unknown; avatar_url?: unknown };
+  } catch {
+    throw new TokenValidationError(502, 'GitHub returned an unexpected response while validating the token.');
+  }
+  if (typeof user.login !== 'string' || !user.login) {
+    throw new TokenValidationError(502, 'GitHub returned an incomplete account response while validating the token.');
+  }
   const value: StoredToken = {
     token,
     login: user.login,
-    avatarUrl: user.avatar_url ?? '',
+    avatarUrl: typeof user.avatar_url === 'string' ? user.avatar_url : '',
     scopes: res.headers.get('x-oauth-scopes') ?? '',
     source,
   };
@@ -162,6 +180,7 @@ app.onError((err, c) => {
   // Only messages we authored are relayed. Anything else could carry request or upstream
   // content — including a credential — so it is logged shape-only and replaced.
   if (err instanceof HttpError) return c.json({ error: err.message }, err.status as 400);
+  if (err instanceof TokenValidationError) return c.json({ error: err.message }, err.status as 400);
   if (err instanceof ReviewSubmitError || err instanceof OAuthError || err instanceof DeviceFlowError) {
     return c.json({ error: err.message }, 400);
   }

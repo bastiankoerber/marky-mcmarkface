@@ -526,6 +526,11 @@ function PasteToken({ onSubmit }: { onSubmit: (token: string) => void }) {
       <button className="btn" disabled={!token.trim()}>
         Connect
       </button>
+      <p className="muted small">
+        For company repositories, a fine-grained token must name the organisation as its resource
+        owner and may need owner approval. A classic token may need <strong>Configure SSO</strong>
+        in GitHub's token settings.
+      </p>
     </form>
   );
 }

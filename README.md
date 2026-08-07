@@ -121,6 +121,14 @@ only until the app quits. The local web installation uses the native keyring whe
 `~/.marky-mcmarkface/token.json`, mode 0600, as its documented fallback). The token never reaches
 the browser in either installation.
 
+Company organisations may require an owner to
+[approve the OAuth app](https://docs.github.com/en/account-and-profile/how-tos/organization-membership/requesting-organization-approval-for-oauth-apps).
+For a classic personal access token, authorize the organisation under
+[Configure SSO](https://docs.github.com/authentication/authenticating-with-saml-single-sign-on/authorizing-a-personal-access-token-for-use-with-saml-single-sign-on).
+A fine-grained token must name the organisation as its resource owner, select the required
+repositories, and may remain pending until an owner approves it. Organisation or enterprise
+policy can also block PAT access completely; Marky McMarkface cannot bypass that policy.
+
 When secure desktop storage is chosen, macOS may ask for access to **“Marky McMarkface Safe
 Storage”**. The app shows an explanation before triggering that dialog. Its password field belongs
 to macOS; Marky McMarkface cannot see or store the Mac login password. Choosing **Deny** stores
