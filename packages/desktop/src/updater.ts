@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { randomBytes } from 'node:crypto';
 import { selectUpdate, type AvailableUpdate, type GitHubRelease } from './update-policy.js';
 
-const REPOSITORY = 'bastiankoerber/pilcrow';
+const REPOSITORY = 'bastiankoerber/marky-mcmarkface';
 const RELEASE_API = `https://api.github.com/repos/${REPOSITORY}/releases/latest`;
 const CHECK_INTERVAL_MS = 6 * 60 * 60_000;
 

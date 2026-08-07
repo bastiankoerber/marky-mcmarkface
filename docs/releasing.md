@@ -10,6 +10,24 @@ bundle and DMG, and attaches these files to the release:
 
 ## One-time GitHub setup
 
+Public distribution outside the Mac App Store requires an active
+[Apple Developer Program](https://developer.apple.com/programs/whats-included/) membership. Apple
+currently charges US$99 per membership year (or the local equivalent where available). A free
+Apple account can build local ad-hoc copies, but it cannot issue the Developer ID certificate used
+by Gatekeeper for public downloads.
+
+Before configuring GitHub:
+
+1. Enrol in the Apple Developer Program and enable two-factor authentication for the Apple ID.
+2. In **Certificates, Identifiers & Profiles**, create a
+   [Developer ID Application certificate](https://developer.apple.com/help/account/certificates/create-developer-id-certificates/).
+   Install the downloaded certificate on the Mac that created its signing request.
+3. In Keychain Access, export that certificate **together with its private key** as a password-
+   protected `.p12` file. Keep this file and its password private.
+4. Create an app-specific password at [account.apple.com](https://account.apple.com/) for the
+   notarization service, and copy the ten-character Team ID from the Apple Developer membership
+   details page.
+
 Create an Actions environment named **release** under **Settings → Environments**. Restrict it to
 release tags such as `v*` and, for a public repository, consider requiring a maintainer's approval
 before the job can access signing credentials.

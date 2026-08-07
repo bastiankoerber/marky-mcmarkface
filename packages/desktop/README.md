@@ -10,11 +10,11 @@ connection it explains why macOS may show “Marky McMarkface Safe Storage”, w
 can access, and that the password is handled by macOS. A session-only connection is available for
 users who do not want to grant persistent access.
 
-Packaged builds check `bastiankoerber/pilcrow` on GitHub for a newer stable release shortly after
-launch and every six hours while running. The comparison happens locally; the request contains no
-GitHub token, repository data, or analytics identifier. The app asks before downloading anything
-and asks again before restarting to install it. **Marky McMarkface → Check for Updates…** performs
-the same check manually.
+Packaged builds check `bastiankoerber/marky-mcmarkface` on GitHub for a newer stable release
+shortly after launch and every six hours while running. The comparison happens locally; the
+request contains no GitHub token, repository data, or analytics identifier. The app asks before
+downloading anything and asks again before restarting to install it. **Marky McMarkface → Check
+for Updates…** performs the same check manually.
 
 Automatic replacement is enabled only in Developer ID-signed release builds installed outside a
 read-only DMG. Ad-hoc development builds offer the GitHub release page instead. The updater accepts

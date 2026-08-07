@@ -59,9 +59,10 @@ without decrypting it, and the user explicitly chooses when to unlock it.
 ### Desktop updates
 
 The packaged desktop app makes an unauthenticated request to
-`api.github.com/repos/bastiankoerber/pilcrow/releases/latest` shortly after launch and every six
-hours while it remains open. The installed version is compared locally and is not put in the
-request URL. No GitHub token, pull-request data, or analytics identifier is sent with this check.
+`api.github.com/repos/bastiankoerber/marky-mcmarkface/releases/latest` shortly after launch and
+every six hours while it remains open. The installed version is compared locally and is not put
+in the request URL. No GitHub token, pull-request data, or analytics identifier is sent with this
+check.
 
 The app asks before downloading an update and again before restarting. Automatic replacement is
 available only to Developer ID-signed builds and only for the exact architecture-specific ZIP

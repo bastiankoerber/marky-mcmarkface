@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { isNewerVersion, selectUpdate, type GitHubRelease } from './update-policy.js';
 
-const repository = 'bastiankoerber/pilcrow';
+const repository = 'bastiankoerber/marky-mcmarkface';
 
 function release(version: string, assetName = `Marky-McMarkface-${version}-arm64.zip`): GitHubRelease {
   return {
