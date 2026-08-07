@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'react';
-import DOMPurify from 'dompurify';
-import type { AnchoringImpl, SourceRange, ViewerProps } from '@pilcrow/viewer-api';
+import type { AnchoringImpl, SourceRange, ViewerProps } from '@marky-mcmarkface/viewer-api';
 import { parseMarkdown, normaliseSource } from './parse.js';
 import { renderToHtml } from './render.js';
 import { diffMarkdown } from './blockdiff.js';
 import { describeRange, anchorRange } from './anchoring.js';
+import { sanitizeRenderedHtml } from './sanitize.js';
 
 /**
  * The built-in markdown viewer: a rendered rich diff you can select prose in.
@@ -28,7 +28,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
    * A fresh nonce per render, namespacing the position attribute.
    *
    * Markdown may contain raw HTML and `data-` attributes survive sanitisation, so without this
-   * a pull request author could ship their own `data-pilcrow-pos` and steer where a reviewer's
+   * a pull request author could ship their own `data-marky-mcmarkface-pos` and steer where a reviewer's
    * comment lands — highlighting one sentence while the posted comment quotes another. The
    * nonce is generated here, outside anything the document can influence, and is carried on the
    * root element rather than inside the sanitised HTML.
@@ -42,14 +42,14 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     // newly added file, where `base` is null and every block is new. Skipping the diff there
     // would render an added file identically to an unchanged one.
     if (mode === 'final') {
-      return { html: sanitize(renderToHtml(head, headTree, { nonce: token })), nonce: token };
+      return { html: sanitizeRenderedHtml(renderToHtml(head, headTree, { nonce: token })), nonce: token };
     }
 
     const base = file.base === null ? null : normaliseSource(file.base);
     const baseTree = base === null ? null : parseMarkdown(base);
     const diff = diffMarkdown(base, baseTree, head, headTree);
     return {
-      html: sanitize(renderToHtml(head, headTree, { blocks: diff.blocks, inline: diff.inline, nonce: token })),
+      html: sanitizeRenderedHtml(renderToHtml(head, headTree, { blocks: diff.blocks, inline: diff.inline, nonce: token })),
       nonce: token,
     };
   }, [file.head, file.base, mode]);
@@ -70,7 +70,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
       scrollTo: (range) => {
         const found = anchorRange(root, range);
         if (!found) return;
-        const container = root.closest('[data-pilcrow-scroll]') ?? root.parentElement;
+        const container = root.closest('[data-marky-mcmarkface-scroll]') ?? root.parentElement;
         if (!container) return;
         // Centre the passage and animate. Jumping it to a fixed 120px from the top read as an
         // abrupt cut, and left the reader without the context above the line they asked for.
@@ -128,34 +128,11 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     <div
       ref={containerRef}
       className="md-body"
-      data-pilcrow-root=""
-      data-pilcrow-nonce={nonce}
+      data-marky-mcmarkface-root=""
+      data-marky-mcmarkface-nonce={nonce}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );
-}
-
-function sanitize(html: string): string {
-  return DOMPurify.sanitize(html, {
-    // ALLOW_DATA_ATTR defaults true, which is what preserves data-pilcrow-pos-<nonce> / -x.
-    // A pull request author can therefore write those attributes too — which is why the
-    // position attribute is namespaced with a per-render nonce they cannot predict.
-    ADD_TAGS: ['ins', 'del'],
-    // `target` is added back deliberately: DOMPurify strips it by default, which made links in
-    // a rendered PR navigate the app tab away. It is only safe alongside the `rel` the renderer
-    // always emits.
-    ADD_ATTR: ['target'],
-    FORBID_TAGS: ['script', 'style', 'iframe', 'object', 'embed', 'form', 'input', 'button'],
-    /*
-     * `style` and `class` are the review-integrity ones, not XSS.
-     *
-     * `style` lets a pull request hide its own content from the rendered view the reviewer
-     * approves from (`display:none`, `font-size:0`), or paint over the entire UI with
-     * `position:fixed;inset:0;z-index:99999` — including the Approve and Request changes
-     * buttons. `class` lets raw HTML borrow Pilcrow's own chrome to look like the app talking.
-     */
-    FORBID_ATTR: ['style', 'class', 'srcdoc', 'formaction', 'ping'],
-  });
 }
 
 /** Exposed so the host can paint highlights for annotations without re-implementing anchoring. */

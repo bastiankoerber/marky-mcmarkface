@@ -52,8 +52,8 @@ describe('flow lifecycle', () => {
 
   beforeEach(() => {
     clearFlow();
-    process.env.PILCROW_GITHUB_CLIENT_ID = 'test-client-id';
-    process.env.PILCROW_GITHUB_CLIENT_SECRET = 'test-client-secret';
+    process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_ID = 'test-client-id';
+    process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_SECRET = 'test-client-secret';
   });
 
   it('builds an authorize URL with every parameter GitHub requires', () => {
@@ -100,8 +100,8 @@ describe('flow lifecycle', () => {
   });
 
   it('returns null when no credentials are configured, rather than a broken URL', () => {
-    delete process.env.PILCROW_GITHUB_CLIENT_ID;
-    delete process.env.PILCROW_GITHUB_CLIENT_SECRET;
+    delete process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_ID;
+    delete process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_SECRET;
     expect(beginFlow(REDIRECT)).toBeNull();
   });
 });

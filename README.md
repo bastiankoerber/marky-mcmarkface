@@ -1,6 +1,8 @@
 <div align="center">
 
-# ¶ Pilcrow
+<img src="packages/host/public/icons/icon-192.png" width="112" height="112" alt="Marky McMarkface logo" />
+
+# Marky McMarkface
 
 **Review Markdown pull requests the way they will be read.**
 
@@ -15,15 +17,43 @@ GitHub renders Markdown beautifully in its rich diff, and then will not let you 
 So documentation review happens against raw diffs — reading `+` and `−` and mentally rebuilding
 the page — or it happens in Google Docs and never makes it back into the repository.
 
-Pilcrow is the missing half: the rendered view, with commenting.
+Marky McMarkface is the missing half: the rendered view, with commenting.
+
+## Installation
+
+### Desktop application for macOS
+
+The desktop build installs as an ordinary **Marky McMarkface.app**: its own window, Dock icon,
+Application Support directory, and no terminal or browser tab. Download the `.dmg` from Releases
+when one is published, or build it locally:
+
+```bash
+pnpm install
+pnpm desktop:make
+open packages/desktop/out/make
+```
+
+Publishing a GitHub release can build and attach the installer automatically. Maintainer setup
+and the release checklist are in [docs/releasing.md](docs/releasing.md).
+
+Signed desktop releases check GitHub directly for updates and ask before downloading or
+restarting. Development builds never replace themselves automatically.
+
+Ad-hoc-signed local builds may require **right-click → Open** the first time. Public release artifacts
+should be signed and notarized with an Apple Developer ID.
+
+### Local web installation
+
+The original development-friendly installation remains available:
 
 ```bash
 pnpm install
 pnpm dev
 ```
 
-Then connect your GitHub account and start reviewing. Everything runs on your machine; there is
-no Pilcrow server and nothing leaves your Mac except calls to GitHub.
+Then connect your GitHub account and start reviewing. Both installations run entirely on your
+machine; there is no hosted Marky McMarkface service and nothing leaves your Mac except calls to
+GitHub.
 
 ## What it does
 
@@ -34,7 +64,7 @@ which hurt readability behind prose. Toggle to *Final* for the clean read, or *S
 raw hunks. `[` and `]` collapse the file tree and the margin; with both hidden it is just the
 page.
 
-**Comment on prose, not on lines.** Select any passage and write a note. Pilcrow works out which
+**Comment on prose, not on lines.** Select any passage and write a note. Marky McMarkface works out which
 source lines you meant and posts a normal GitHub review comment there. Existing threads appear
 in the margin beside the text they refer to, with replies and resolve.
 
@@ -42,7 +72,7 @@ in the margin beside the text they refer to, with replies and resolve.
 review model works — the author gets a single notification rather than a drip of emails while
 you read. Drafts survive a reload and are listed on the dashboard, so an unsubmitted review is
 never mistaken for feedback already given. If new commits land while you were writing, the
-drafts are dropped rather than re-pinned to lines that have since moved, and Pilcrow says so.
+drafts are dropped rather than re-pinned to lines that have since moved, and Marky McMarkface says so.
 
 **Light, dark, or whatever your Mac is doing.** Three-state switch in the top bar. Dark is warm
 rather than blue-black, and the paper grain is light-mode only.
@@ -56,7 +86,7 @@ unchanged prose says so instead of letting you write a comment that gets rejecte
 
 ## Connecting
 
-Pilcrow needs no setup and registers nothing. If you have the GitHub CLI authenticated —
+Marky McMarkface needs no setup and registers nothing. If you have the GitHub CLI authenticated —
 `gh auth status` — the first screen offers **Continue as @you** and that is the whole flow. It
 reuses the authorisation you already granted `gh`; no app to create, no codes to type, no
 credentials to paste.
@@ -67,19 +97,27 @@ If `gh` is not set up, or your org blocks it, two other ways in:
   OAuth apps. Needs *Pull requests: read and write* on the repositories you review.
 - **Register your own OAuth app** — optional, and only worth it if you want the browser sign-in
   button instead of the CLI. The setup screen walks through it and takes about a minute; supply a
-  client secret and sign-in is one click, leave it out and Pilcrow uses device codes.
+  client secret and sign-in is one click, leave it out and Marky McMarkface uses device codes.
 
 A fork can commit its own client ID to `BUNDLED_CLIENT_ID` in
 `packages/server/src/auth/oauth.ts`, which is what `gh` and VS Code do with theirs — but nobody
 has to, and this repository deliberately ships it empty rather than embedding credentials that
 would then belong to whoever cloned it.
 
-Pilcrow requests `repo` and `read:org` — the minimum GitHub offers, since classic OAuth has no
-read-only private scope and posting reviews requires write. Your token goes into the macOS
-Keychain (or `~/.pilcrow/token.json`, mode 0600, if the native keyring module is unavailable) and
-never reaches the browser.
+Marky McMarkface requests `repo` and `read:org` — the minimum classic OAuth scopes that support
+private pull requests and posting reviews, though `repo` authorises more than the application
+implements. The desktop app explains that distinction before opening GitHub. After GitHub
+approves, you can encrypt the token with a key protected by macOS Keychain or keep it in memory
+only until the app quits. The local web installation uses the native keyring when available (or
+`~/.marky-mcmarkface/token.json`, mode 0600, as its documented fallback). The token never reaches
+the browser in either installation.
 
-**Pilcrow will never ask you to paste a token in order to "reconnect".** If you see that, it did
+When secure desktop storage is chosen, macOS may ask for access to **“Marky McMarkface Safe
+Storage”**. The app shows an explanation before triggering that dialog. Its password field belongs
+to macOS; Marky McMarkface cannot see or store the Mac login password. Choosing **Deny** stores
+nothing and leaves the session-only option available.
+
+**Marky McMarkface will never ask you to paste a token in order to "reconnect".** If you see that, it did
 not come from us.
 
 ## Extending it
@@ -145,6 +183,6 @@ Requires macOS, Node 20.19+, pnpm 10+.
 ## Contributing
 
 [CONTRIBUTING.md](CONTRIBUTING.md) · [Code of conduct](CODE_OF_CONDUCT.md) ·
-[Security](SECURITY.md)
+[Security](SECURITY.md) · [Third-party notices](THIRD_PARTY_NOTICES.md)
 
 MIT licensed.

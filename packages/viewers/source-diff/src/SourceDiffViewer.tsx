@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { diffLines } from 'diff';
-import type { AnchoringImpl, ViewerProps } from '@pilcrow/viewer-api';
+import type { AnchoringImpl, ViewerProps } from '@marky-mcmarkface/viewer-api';
 
 /**
  * The always-available fallback viewer: a plain unified diff with line numbers.

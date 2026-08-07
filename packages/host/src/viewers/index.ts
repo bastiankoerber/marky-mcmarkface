@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { defineViewer, BUILTIN_RANK, type ViewerPlugin } from '@pilcrow/viewer-api';
+import { defineViewer, BUILTIN_RANK, type ViewerPlugin } from '@marky-mcmarkface/viewer-api';
 import { ViewerRegistry } from './registry.js';
 
 /**
@@ -9,14 +9,14 @@ import { ViewerRegistry } from './registry.js';
  * never enter the entry bundle. That is what keeps adding a heavy viewer — bpmn-js, a notebook
  * renderer — from taxing everyone who never opens one.
  *
- * Phase 2 adds `pilcrow.config.ts` plus a Vite virtual module that `import()`s configured npm
+ * Phase 2 adds `marky-mcmarkface.config.ts` plus a Vite virtual module that `import()`s configured npm
  * packages into this same array. Because Vite does the bundling, React stays a singleton for
  * free: no import maps, no Module Federation, no runtime loader.
  */
 
 const markdown = defineViewer({
   manifest: {
-    id: 'pilcrow.markdown',
+    id: 'marky-mcmarkface.markdown',
     displayName: 'Rich diff',
     selector: [{ filenamePattern: '**/*.md' }, { filenamePattern: '**/*.mdx' }],
     rank: BUILTIN_RANK,
@@ -24,12 +24,12 @@ const markdown = defineViewer({
     safe: true,
     capabilities: { sourceMapping: true, diff: 'native', anchorGranularity: 'char' },
   },
-  component: lazy(async () => ({ default: (await import('@pilcrow/viewer-markdown/src/MarkdownViewer.js')).MarkdownViewer })),
+  component: lazy(async () => ({ default: (await import('@marky-mcmarkface/viewer-markdown/src/MarkdownViewer.js')).MarkdownViewer })),
 });
 
 const sourceDiff = defineViewer({
   manifest: {
-    id: 'pilcrow.source-diff',
+    id: 'marky-mcmarkface.source-diff',
     displayName: 'Source diff',
     // Claims everything at the worst rank, so resolution can never dead-end.
     selector: [{ filenamePattern: '**/*' }],
@@ -39,7 +39,7 @@ const sourceDiff = defineViewer({
     capabilities: { sourceMapping: true, diff: 'native', anchorGranularity: 'line' },
   },
   component: lazy(async () => ({
-    default: (await import('@pilcrow/viewer-source-diff/src/SourceDiffViewer.js')).SourceDiffViewer,
+    default: (await import('@marky-mcmarkface/viewer-source-diff/src/SourceDiffViewer.js')).SourceDiffViewer,
   })),
 });
 

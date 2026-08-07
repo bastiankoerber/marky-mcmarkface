@@ -9,7 +9,7 @@ import { streamSSE } from 'hono/streaming';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { GitHubClient } from './github/client.js';
 import { fetchPr } from './github/pr.js';
@@ -20,7 +20,14 @@ import {
   ReviewSubmitError,
   type SubmitReviewInput,
 } from './github/review.js';
-import { loadToken, saveToken, clearToken, type StoredToken } from './auth/keychain.js';
+import {
+  loadToken,
+  saveToken,
+  clearToken,
+  hasStoredToken,
+  unlockToken,
+  type StoredToken,
+} from './auth/keychain.js';
 import { ghStatus, ghToken } from './auth/gh-cli.js';
 import { requestDeviceCode, pollForToken, revokeGrant, clientId, DeviceFlowError, type DeviceCode } from './auth/device-flow.js';
 import {
@@ -38,11 +45,14 @@ import { localOnly, sessionKey, publishSessionKey } from './middleware/security.
 import { readPrefs, writePrefs } from './prefs.js';
 import { Poller } from './poll.js';
 
-const PORT = Number(process.env.PILCROW_PORT ?? 7423);
-const VITE_ORIGIN = process.env.PILCROW_VITE_ORIGIN ?? 'http://localhost:5180';
+const PORT = Number(process.env.MARKY_MCMARKFACE_PORT ?? 7423);
+const VITE_ORIGIN = process.env.MARKY_MCMARKFACE_VITE_ORIGIN ?? 'http://localhost:5180';
+const DESKTOP = process.env.MARKY_MCMARKFACE_DESKTOP === '1';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const dist = join(here, '../../host/dist');
+const dist = process.env.MARKY_MCMARKFACE_UI_DIST
+  ? resolve(process.env.MARKY_MCMARKFACE_UI_DIST)
+  : join(here, '../../host/dist');
 const hasBuiltUi = existsSync(dist);
 
 /** Where to send the browser back to after GitHub redirects here. In production the server
@@ -52,11 +62,14 @@ const APP_ORIGIN = () => (hasBuiltUi ? `http://127.0.0.1:${PORT}` : VITE_ORIGIN)
 const poller = new Poller();
 let client: GitHubClient | null = null;
 let stored: StoredToken | null = null;
+let pending: { value: StoredToken; expiresAt: number } | null = null;
+let storageMode: 'keychain' | 'session' | null = null;
+let locked = false;
 let deviceInFlight: { device: DeviceCode; abort: AbortController } | null = null;
 
-async function adopt(token: string, source: StoredToken['source']): Promise<StoredToken> {
+async function identifyToken(token: string, source: StoredToken['source']): Promise<StoredToken> {
   const res = await fetch('https://api.github.com/user', {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'pilcrow' },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'marky-mcmarkface' },
   });
   if (!res.ok) throw new Error(`GitHub rejected this token (${res.status}).`);
   const user = (await res.json()) as { login: string; avatar_url?: string };
@@ -67,18 +80,49 @@ async function adopt(token: string, source: StoredToken['source']): Promise<Stor
     scopes: res.headers.get('x-oauth-scopes') ?? '',
     source,
   };
-  await saveToken(value);
-  stored = value;
-  client = new GitHubClient(token);
-  poller.setClient(client);
   return value;
 }
 
+function activate(value: StoredToken, mode: 'keychain' | 'session'): void {
+  stored = value;
+  pending = null;
+  locked = false;
+  storageMode = mode;
+  client = new GitHubClient(value.token);
+  poller.setClient(client);
+}
+
+/**
+ * Validate a token, but do not touch Keychain in the desktop app. The renderer first shows the
+ * account and an explanation of the macOS prompt, then explicitly commits or discards this
+ * short-lived in-memory value.
+ */
+async function adopt(token: string, source: StoredToken['source']): Promise<StoredToken> {
+  const value = await identifyToken(token, source);
+  if (DESKTOP) {
+    pending = { value, expiresAt: Date.now() + 10 * 60_000 };
+    return value;
+  }
+  await saveToken(value);
+  activate(value, 'keychain');
+  return value;
+}
+
+function pendingValue(): StoredToken | null {
+  if (pending && pending.expiresAt <= Date.now()) pending = null;
+  return pending?.value ?? null;
+}
+
 async function restore(): Promise<void> {
+  if (DESKTOP) {
+    // Looking for the encrypted file does not touch Keychain. Decryption is a later, explicit
+    // user action, after the window has explained the macOS dialog.
+    locked = await hasStoredToken();
+    return;
+  }
   stored = await loadToken();
   if (!stored) return;
-  client = new GitHubClient(stored.token);
-  poller.setClient(client);
+  activate(stored, 'keychain');
 }
 
 function requireClient(): GitHubClient {
@@ -121,25 +165,29 @@ app.onError((err, c) => {
   if (err instanceof ReviewSubmitError || err instanceof OAuthError || err instanceof DeviceFlowError) {
     return c.json({ error: err.message }, 400);
   }
-  console.error(`[pilcrow] ${c.req.method} ${c.req.path} failed: ${(err as Error).name}`);
+  console.error(`[marky-mcmarkface] ${c.req.method} ${c.req.path} failed: ${(err as Error).name}`);
   return c.json({ error: 'Something went wrong handling that request.' }, 500);
 });
 
 // ── auth ───────────────────────────────────────────────────────────────────────
 
-app.get('/api/auth/status', async (c) =>
-  c.json({
+app.get('/api/auth/status', async (c) => {
+  const waiting = pendingValue();
+  return c.json({
     connected: Boolean(stored),
     login: stored?.login ?? null,
     avatarUrl: stored?.avatarUrl ?? null,
     scopes: stored?.scopes ?? null,
     source: stored?.source ?? null,
+    storage: locked ? 'locked' : storageMode ?? 'none',
+    pending: waiting ? publicIdentity(waiting) : null,
     oauthConfigured: credentials() !== null,
     deviceFlowConfigured: clientId() !== null,
     registrationUrl: registrationUrl(),
+    desktop: DESKTOP,
     gh: await ghStatus(),
-  }),
-);
+  });
+});
 
 // ── the primary flow: authorization code + PKCE over a loopback redirect ───────
 
@@ -165,18 +213,37 @@ app.post('/api/auth/oauth/configure', async (c) => {
 app.post('/api/auth/oauth/start', (c) => {
   const redirectUri = `http://127.0.0.1:${PORT}/gh/callback`;
   const started = beginFlow(redirectUri);
-  if (!started) throw new HttpError(400, 'Pilcrow has no OAuth credentials configured.');
+  if (!started) throw new HttpError(400, 'Marky McMarkface has no OAuth credentials configured.');
   return c.json({ url: started.url });
 });
 
 /**
- * GitHub redirects here. Deliberately not under /api, so it needs no `X-Pilcrow` header — a
+ * GitHub redirects here. Deliberately not under /api, so it needs no `X-Marky-McMarkface` header — a
  * top-level navigation cannot set one. The `Host` check in the security middleware still
  * applies, and `state` is what actually authenticates this callback.
  */
 app.get('/gh/callback', async (c) => {
-  const back = (params: Record<string, string>) =>
-    c.redirect(`${APP_ORIGIN()}/#/connected?${new URLSearchParams(params)}`);
+  const back = (params: Record<string, string>) => {
+    if (!DESKTOP) {
+      return c.redirect(`${APP_ORIGIN()}/#/connected?${new URLSearchParams(params)}`);
+    }
+
+    const ok = params.ok === '1';
+    const message = ok
+      ? DESKTOP
+        ? 'GitHub approved the connection. Return to Marky McMarkface to choose how to protect it.'
+        : 'GitHub is connected. You can close this window and return to Marky McMarkface.'
+      : params.error || 'GitHub sign-in did not complete.';
+    const safe = message
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+    return c.html(
+      `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Marky McMarkface</title></head><body><main><h1>${ok ? 'Connected' : 'Sign-in failed'}</h1><p>${safe}</p></main></body></html>`,
+    );
+  };
 
   /*
    * Never put a caller-supplied string on the sign-in screen.
@@ -191,23 +258,36 @@ app.get('/gh/callback', async (c) => {
    * GitHub's `error` codes are a known, closed set, so map them and drop the rest.
    */
   const error = c.req.query('error');
-  if (error) return back({ error: describeOAuthError(error) });
+  if (error) {
+    const message = describeOAuthError(error);
+    if (DESKTOP) poller.emit('auth-error', { code: error, message });
+    return back({ error: message });
+  }
 
   const code = c.req.query('code');
   const state = c.req.query('state');
-  if (!code || !state) return back({ error: 'GitHub did not return an authorisation code.' });
+  if (!code || !state) {
+    const message = 'GitHub did not return an authorisation code.';
+    if (DESKTOP) poller.emit('auth-error', { code: 'missing_code', message });
+    return back({ error: message });
+  }
 
   // Only consume the pending flow once the state matches. Clearing it first meant any page
   // could kill an in-flight sign-in with <img src=".../gh/callback?error=x">.
   const flow = takeFlow(state);
   if (!flow) {
-    return back({ error: 'That sign-in attempt expired or did not match. Please try again.' });
+    const message = 'That sign-in attempt expired or did not match. Please try again.';
+    if (DESKTOP) poller.emit('auth-error', { code: 'state_mismatch', message });
+    return back({ error: message });
   }
 
   try {
     const token = await exchangeCode(flow, code);
     const identity = await adopt(token, 'oauth');
-    poller.emit('auth', { connected: true, login: identity.login });
+    poller.emit(DESKTOP ? 'auth-pending' : 'auth', {
+      connected: !DESKTOP,
+      login: identity.login,
+    });
     return back({ ok: '1' });
   } catch (err) {
     const message = err instanceof OAuthError ? err.message : (err as Error).message;
@@ -217,14 +297,67 @@ app.get('/gh/callback', async (c) => {
 });
 
 /**
- * The token never leaves the server process. It lives in the Keychain and is attached to
- * outbound GitHub calls here; the browser only ever learns who it belongs to. Returning the
- * secret to the UI would put it in memory, in devtools, and in any error reporting the page
- * later grows, for no benefit — the UI has no use for it.
+ * The token never leaves the server process. It is encrypted with a Keychain-protected key or
+ * kept in memory for this session, and is attached to outbound GitHub calls here; the browser
+ * only ever learns who it belongs to. Returning the secret to the UI would put it in renderer
+ * memory, devtools, and any error reporting the page later grows, for no benefit.
  */
 function publicIdentity(value: StoredToken) {
   return { login: value.login, avatarUrl: value.avatarUrl, scopes: value.scopes, source: value.source };
 }
+
+app.post('/api/auth/storage/commit', async (c) => {
+  if (!DESKTOP) throw new HttpError(400, 'Storage choices are managed automatically in this installation.');
+  const value = pendingValue();
+  if (!value) throw new HttpError(409, 'That GitHub connection expired. Please connect again.');
+  const { mode } = await readJson<{ mode?: string }>(c);
+  if (mode !== 'keychain' && mode !== 'session') throw new HttpError(400, 'Choose a storage method.');
+
+  if (mode === 'keychain') {
+    try {
+      await saveToken(value);
+    } catch {
+      // Do not expose a native error: it may contain OS details and it cannot reliably
+      // distinguish Deny from a locked or unavailable Keychain.
+      throw new HttpError(
+        400,
+        'macOS did not save the connection. Nothing was stored; you can try again or use it until you quit.',
+      );
+    }
+  }
+
+  activate(value, mode);
+  poller.emit('auth', { connected: true, login: value.login });
+  return c.json(publicIdentity(value));
+});
+
+app.post('/api/auth/storage/cancel', async (c) => {
+  const value = pendingValue();
+  pending = null;
+  if (value && (value.source === 'oauth' || value.source === 'device-flow')) {
+    await revokeGrant(value.token).catch(() => false);
+  }
+  return c.json({ ok: true });
+});
+
+app.post('/api/auth/storage/unlock', async (c) => {
+  if (!DESKTOP || !locked) throw new HttpError(404, 'No saved GitHub connection was found.');
+  let value: StoredToken;
+  try {
+    value = await unlockToken();
+  } catch (err) {
+    throw new HttpError(400, (err as Error).message);
+  }
+  activate(value, 'keychain');
+  poller.emit('auth', { connected: true, login: value.login });
+  return c.json(publicIdentity(value));
+});
+
+app.post('/api/auth/storage/forget', async (c) => {
+  await clearToken();
+  locked = false;
+  return c.json({ ok: true });
+});
 
 app.post('/api/auth/gh', async (c) => c.json(publicIdentity(await adopt(await ghToken(), 'gh-cli'))));
 
@@ -246,7 +379,10 @@ app.post('/api/auth/device/start', async (c) => {
     try {
       const token = await pollForToken(device, abort.signal);
       const value = await adopt(token, 'device-flow');
-      poller.emit('auth', { connected: true, login: value.login });
+      poller.emit(DESKTOP ? 'auth-pending' : 'auth', {
+        connected: !DESKTOP,
+        login: value.login,
+      });
     } catch (err) {
       const code = err instanceof DeviceFlowError ? err.code : 'error';
       if (code !== 'aborted') poller.emit('auth-error', { code, message: (err as Error).message });
@@ -274,6 +410,9 @@ app.post('/api/auth/signout', async (c) => {
   if (stored) await revokeGrant(stored.token).catch(() => false);
   await clearToken();
   stored = null;
+  pending = null;
+  locked = false;
+  storageMode = null;
   client = null;
   poller.setClient(null);
   return c.json({ ok: true });
@@ -385,7 +524,7 @@ if (hasBuiltUi) {
   const serveIndex = async () => {
     const html = await readFile(indexHtml, 'utf8');
     return new Response(
-      html.replace('</head>', `<meta name="pilcrow-key" content="${sessionKey()}"></head>`),
+      html.replace('</head>', `<meta name="marky-mcmarkface-key" content="${sessionKey()}"></head>`),
       { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
     );
   };
@@ -399,10 +538,10 @@ publishSessionKey();
 await restore();
 
 serve({ fetch: app.fetch, port: PORT, hostname: '127.0.0.1' }, (info) => {
-  console.log(`\n  pilcrow server  http://127.0.0.1:${info.port}`);
+  console.log(`\n  marky-mcmarkface server  http://127.0.0.1:${info.port}`);
   console.log(`  bound to 127.0.0.1 only${existsSync(dist) ? '' : '  (dev: run the Vite server for the UI)'}`);
   if (!clientId()) {
-    console.log(`  device flow disabled — set PILCROW_GITHUB_CLIENT_ID to enable it; "Use GitHub CLI" works now`);
+    console.log(`  device flow disabled — set MARKY_MCMARKFACE_GITHUB_CLIENT_ID to enable it; "Use GitHub CLI" works now`);
   }
   console.log('');
 });

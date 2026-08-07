@@ -7,8 +7,8 @@ const exec = promisify(execFile);
  * Import the GitHub CLI's token.
  *
  * Offered as a convenience, never as the default, and the UI must disclose why: that token
- * belongs to the GitHub CLI's own OAuth app, so every call pilcrow makes appears in org audit logs
- * as "GitHub CLI" rather than as pilcrow. It also carries scopes pilcrow has no business holding —
+ * belongs to the GitHub CLI's own OAuth app, so every call marky-mcmarkface makes appears in org audit logs
+ * as "GitHub CLI" rather than as marky-mcmarkface. It also carries scopes marky-mcmarkface has no business holding —
  * `workflow` (rewrite CI) and `admin:public_key` (add SSH keys to the account).
  */
 
@@ -17,12 +17,12 @@ export interface GhStatus {
   loggedIn: boolean;
   login?: string;
   scopes?: string;
-  /** Scopes gh holds that pilcrow would never request. Surfaced in the UI before the user opts in. */
+  /** Scopes gh holds that marky-mcmarkface would never request. Surfaced in the UI before the user opts in. */
   excessScopes?: string[];
   reason?: string;
 }
 
-const PILCROW_SCOPES = new Set(['repo', 'read:org']);
+const MARKY_MCMARKFACE_SCOPES = new Set(['repo', 'read:org']);
 
 /** Env vars `gh` prefers over its own stored credential. */
 const AMBIENT_TOKEN_VARS = ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN'];
@@ -36,7 +36,7 @@ async function ghAuthToken(ignoreAmbient: boolean): Promise<string> {
 
 const probe = (token: string) =>
   fetch('https://api.github.com/user', {
-    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'pilcrow' },
+    headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'User-Agent': 'marky-mcmarkface' },
   });
 
 /**
@@ -104,7 +104,7 @@ export async function ghStatus(): Promise<GhStatus> {
   const excess = scopes
     .split(',')
     .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !PILCROW_SCOPES.has(s));
+    .filter((s) => s.length > 0 && !MARKY_MCMARKFACE_SCOPES.has(s));
 
   return { available: true, loggedIn: true, login: user.login, scopes, excessScopes: excess };
 }

@@ -1,13 +1,13 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { DATA_DIR } from '../paths.js';
 
 /**
  * Authorization code + PKCE over a loopback redirect. The primary way to connect.
  *
- * Why this rather than device flow, which is what most local tools reach for: Pilcrow already
+ * Why this rather than device flow, which is what most local tools reach for: Marky McMarkface already
  * owns a browser tab on the same machine, so it can simply *receive* the redirect. Device flow
  * exists for clients that cannot — TVs, CLIs over SSH. GitHub's own guidance is explicit:
  *
@@ -32,12 +32,12 @@ const TOKEN_URL = 'https://github.com/login/oauth/access_token';
 export const SCOPES = 'repo read:org';
 
 /**
- * Bundled credentials for the Pilcrow OAuth App.
+ * Bundled credentials for the Marky McMarkface OAuth App.
  *
  * Register once at:
  *   https://github.com/settings/applications/new
- *     ?oauth_application[name]=Pilcrow
- *     &oauth_application[url]=https://pilcrow.md
+ *     ?oauth_application[name]=Marky McMarkface
+ *     &oauth_application[url]=https://github.com/bastiankoerber/marky-mcmarkface
  *     &oauth_application[callback_url]=http://127.0.0.1/callback
  *
  * Register the callback **without a port**. GitHub's loopback rule: "The redirect_uri does not
@@ -56,16 +56,16 @@ export interface OAuthCredentials {
  * Where the app's own registration lives, in precedence order:
  *
  *   1. environment — for CI and for anyone running a private fork
- *   2. ~/.pilcrow/oauth.json — written by the one-time bootstrap screen
+ *   2. ~/.marky-mcmarkface/oauth.json — written by the one-time bootstrap screen
  *   3. bundled constants — what ships in the repo once the project is registered
  *
- * (3) is the destination. Once the maintainer registers Pilcrow once and commits the values
+ * (3) is the destination. Once the maintainer registers Marky McMarkface once and commits the values
  * here, nobody ever sees the bootstrap screen again: every user, on every machine, just clicks
  * "Connect GitHub". This is the same thing `cli/cli` and `microsoft/vscode` do, for the same
  * reason — GitHub has no Dynamic Client Registration, so a client id has to come from somewhere,
  * and a public client id is not a secret.
  */
-const CONFIG_FILE = join(homedir(), '.pilcrow', 'oauth.json');
+const CONFIG_FILE = join(DATA_DIR, 'oauth.json');
 
 let fileCreds: { clientId: string; clientSecret: string } | null | undefined;
 
@@ -88,18 +88,18 @@ function readFileCreds(): { clientId: string; clientSecret: string } | null {
  * (`const clientId = "opencode-cli"`). A client id is not a credential.
  */
 export function appClientId(): string | null {
-  return process.env.PILCROW_GITHUB_CLIENT_ID || readFileCreds()?.clientId || BUNDLED_CLIENT_ID || null;
+  return process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_ID || readFileCreds()?.clientId || BUNDLED_CLIENT_ID || null;
 }
 
 function appClientSecret(): string | null {
-  return process.env.PILCROW_GITHUB_CLIENT_SECRET || readFileCreds()?.clientSecret || BUNDLED_CLIENT_SECRET || null;
+  return process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_SECRET || readFileCreds()?.clientSecret || BUNDLED_CLIENT_SECRET || null;
 }
 
 /**
  * Full credentials, required for the authorization-code exchange.
  *
  * The secret is deliberately **optional** across the app. With it, sign-in is one click and no
- * codes. Without it, Pilcrow falls back to device flow, which needs no secret — so the repo can
+ * codes. Without it, Marky McMarkface falls back to device flow, which needs no secret — so the repo can
  * ship a working default without committing a secret at all.
  */
 export function credentials(): OAuthCredentials | null {
@@ -119,7 +119,7 @@ export async function saveCredentials(clientId: string, clientSecret: string): P
   if (!trimmedId) throw new Error('A client ID is required.');
 
   // `mode` on mkdir applies only when the directory is created, so chmod unconditionally —
-  // an existing ~/.pilcrow from an earlier version is world-readable and holds secrets.
+  // an existing ~/.marky-mcmarkface from an earlier version is world-readable and holds secrets.
   await mkdir(dirname(CONFIG_FILE), { recursive: true, mode: 0o700 });
   await chmod(dirname(CONFIG_FILE), 0o700);
   await writeFile(CONFIG_FILE, JSON.stringify({ clientId: trimmedId, clientSecret: trimmedSecret }, null, 2), {
@@ -217,7 +217,7 @@ export class OAuthError extends Error {
 
 const FRIENDLY: Record<string, string> = {
   bad_verification_code: 'That sign-in link had already been used. Try connecting again.',
-  incorrect_client_credentials: 'Pilcrow is configured with an invalid OAuth client id or secret.',
+  incorrect_client_credentials: 'Marky McMarkface is configured with an invalid OAuth client id or secret.',
   redirect_uri_mismatch:
     'GitHub rejected the redirect address. The OAuth app’s callback URL must be exactly http://127.0.0.1/callback, with no port.',
   access_denied: 'You declined the authorisation on GitHub.',
@@ -237,14 +237,14 @@ export function describeOAuthError(code: string): string {
 
 export async function exchangeCode(flow: PendingFlow, code: string): Promise<string> {
   const creds = credentials();
-  if (!creds) throw new OAuthError('not_configured', 'Pilcrow has no OAuth credentials configured.');
+  if (!creds) throw new OAuthError('not_configured', 'Marky McMarkface has no OAuth credentials configured.');
 
   const res = await fetch(TOKEN_URL, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
-      'User-Agent': 'pilcrow',
+      'User-Agent': 'marky-mcmarkface',
     },
     body: JSON.stringify({
       client_id: creds.clientId,
@@ -265,8 +265,8 @@ export async function exchangeCode(flow: PendingFlow, code: string): Promise<str
 /** The prefilled registration URL, surfaced in the UI when no credentials are configured. */
 export function registrationUrl(): string {
   const params = new URLSearchParams({
-    'oauth_application[name]': 'Pilcrow',
-    'oauth_application[url]': 'https://github.com/pilcrow-md/pilcrow',
+    'oauth_application[name]': 'Marky McMarkface',
+    'oauth_application[url]': 'https://github.com/bastiankoerber/marky-mcmarkface',
     'oauth_application[callback_url]': 'http://127.0.0.1/callback',
   });
   return `https://github.com/settings/applications/new?${params}`;

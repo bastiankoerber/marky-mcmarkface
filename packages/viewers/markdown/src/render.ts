@@ -7,10 +7,10 @@ import type { DiffBlock, InlineChange } from './blockdiff.js';
  *
  * Three attributes carry the whole story:
  *
- *   data-pilcrow-pos="<start>:<end>"   source char span of this element, on every element
- *   data-pilcrow-x                     the element's text maps 1:1 onto source[start..end], so
+ *   data-marky-mcmarkface-pos="<start>:<end>"   source char span of this element, on every element
+ *   data-marky-mcmarkface-x                     the element's text maps 1:1 onto source[start..end], so
  *                                   character-level anchoring is exact
- *   data-pilcrow-change                added | removed | changed, on top-level blocks
+ *   data-marky-mcmarkface-change                added | removed | changed, on top-level blocks
  *
  * Diff marks are applied by *splitting stamped leaves*, never by wrapping opaque regions, so
  * rich-diff rendering costs nothing in anchoring accuracy — every fragment keeps its own exact
@@ -38,7 +38,7 @@ export interface RenderOptions {
    * Per-render random token appended to the position attribute name.
    *
    * Markdown may contain raw HTML, and `data-` attributes survive sanitisation — so without
-   * this a pull request author can write their own `data-pilcrow-pos` and steer where the
+   * this a pull request author can write their own `data-marky-mcmarkface-pos` and steer where the
    * reviewer's comment lands. Demonstrated: highlighting "This release only fixes typos."
    * produced a comment quoting an entirely different sentence. A nonce they cannot predict
    * makes forged stamps unreadable. Empty (tests, the spike) keeps the bare attribute name.
@@ -68,8 +68,8 @@ function attrs(ctx: Ctx, span: Span | null, exact = false): string {
   const change = ctx.depth === 1 ? ctx.blockKind.get(span.start) : undefined;
   return (
     ` ${ctx.posAttr}="${span.start}:${span.end}"` +
-    (exact ? ' data-pilcrow-x=""' : '') +
-    (change ? ` data-pilcrow-change="${change}"` : '')
+    (exact ? ' data-marky-mcmarkface-x=""' : '') +
+    (change ? ` data-marky-mcmarkface-change="${change}"` : '')
   );
 }
 
@@ -120,18 +120,18 @@ function emitLeaf(ctx: Ctx, tag: string, span: Span, value: string, extra: strin
     const to = points[i + 1]!;
 
     for (const d of ctx.del) {
-      if (d.at === from) out += `<del data-pilcrow-del="">${esc(d.text)}</del>`;
+      if (d.at === from) out += `<del data-marky-mcmarkface-del="">${esc(d.text)}</del>`;
     }
 
     if (to <= from) continue;
     const text = value.slice(from - span.start, to - span.start);
     const inserted = ctx.ins.some((r) => from >= r.start && to <= r.end);
-    const stamped = `<${tag}${extra} ${ctx.posAttr}="${from}:${to}" data-pilcrow-x="">${esc(text)}</${tag}>`;
-    out += inserted ? `<ins data-pilcrow-ins="">${stamped}</ins>` : stamped;
+    const stamped = `<${tag}${extra} ${ctx.posAttr}="${from}:${to}" data-marky-mcmarkface-x="">${esc(text)}</${tag}>`;
+    out += inserted ? `<ins data-marky-mcmarkface-ins="">${stamped}</ins>` : stamped;
   }
 
   for (const d of ctx.del) {
-    if (d.at === span.end) out += `<del data-pilcrow-del="">${esc(d.text)}</del>`;
+    if (d.at === span.end) out += `<del data-marky-mcmarkface-del="">${esc(d.text)}</del>`;
   }
 
   return out;
@@ -163,7 +163,7 @@ function stampRawHtml(value: string, base: number, posAttr: string): string {
       out += text;
       return;
     }
-    out += `<span ${posAttr}="${base + from}:${base + to}" data-pilcrow-x="">${text}</span>`;
+    out += `<span ${posAttr}="${base + from}:${base + to}" data-marky-mcmarkface-x="">${text}</span>`;
   };
 
   while (i < value.length) {
@@ -242,7 +242,7 @@ function renderNode(ctx: Ctx, node: Nodes): string {
   // joins the mdast union when mdast-util-frontmatter's types are in scope.
   const type: string = node.type;
   if (type === 'yaml' || type === 'toml') {
-    return `<div${attrs(ctx, spanOf(node))} data-pilcrow-frontmatter="" hidden></div>`;
+    return `<div${attrs(ctx, spanOf(node))} data-marky-mcmarkface-frontmatter="" hidden></div>`;
   }
 
   switch (node.type) {
@@ -292,7 +292,7 @@ function renderNode(ctx: Ctx, node: Nodes): string {
     case 'link':
       return wrap(ctx, node, 'a', () => children(ctx, node), ` href="${esc(node.url)}" rel="noreferrer" target="_blank"`);
     case 'linkReference':
-      return wrap(ctx, node, 'a', () => children(ctx, node), ' data-pilcrow-ref=""');
+      return wrap(ctx, node, 'a', () => children(ctx, node), ' data-marky-mcmarkface-ref=""');
     case 'image':
       return `<img src="${esc(node.url)}" alt="${esc(node.alt ?? '')}"${attrs(ctx, spanOf(node))}>`;
     case 'imageReference':
@@ -324,14 +324,14 @@ function renderNode(ctx: Ctx, node: Nodes): string {
     case 'footnoteReference':
       return `<sup${attrs(ctx, spanOf(node))}>${esc(node.identifier)}</sup>`;
     case 'footnoteDefinition':
-      return wrap(ctx, node, 'section', () => children(ctx, node), ' data-pilcrow-footnote=""');
+      return wrap(ctx, node, 'section', () => children(ctx, node), ' data-marky-mcmarkface-footnote=""');
     case 'html': {
       const span = spanOf(node);
       const inner = span ? stampRawHtml(node.value, span.start, ctx.posAttr) : node.value;
-      return `<span${attrs(ctx, span)} data-pilcrow-raw="">${inner}</span>`;
+      return `<span${attrs(ctx, span)} data-marky-mcmarkface-raw="">${inner}</span>`;
     }
     case 'definition':
-      return `<span${attrs(ctx, spanOf(node))} data-pilcrow-definition="" hidden></span>`;
+      return `<span${attrs(ctx, spanOf(node))} data-marky-mcmarkface-definition="" hidden></span>`;
     default: {
       const anyNode = node as { children?: unknown };
       if (Array.isArray(anyNode.children)) {
@@ -350,7 +350,7 @@ export function renderToHtml(source: string, tree: Nodes, options: RenderOptions
 
   const ctx: Ctx = {
     source,
-    posAttr: options.nonce ? `data-pilcrow-pos-${options.nonce}` : 'data-pilcrow-pos',
+    posAttr: options.nonce ? `data-marky-mcmarkface-pos-${options.nonce}` : 'data-marky-mcmarkface-pos',
     blockKind,
     ins: (options.inline ?? []).filter((c): c is Extract<InlineChange, { kind: 'ins' }> => c.kind === 'ins'),
     del: (options.inline ?? []).filter((c): c is Extract<InlineChange, { kind: 'del' }> => c.kind === 'del'),

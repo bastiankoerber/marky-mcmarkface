@@ -55,7 +55,7 @@ const FRIENDLY: Record<string, string> = {
 async function postJson(url: string, body: Record<string, string>): Promise<Record<string, unknown>> {
   const res = await fetch(url, {
     method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'pilcrow' },
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'User-Agent': 'marky-mcmarkface' },
     body: JSON.stringify(body),
   });
   return (await res.json()) as Record<string, unknown>;
@@ -66,7 +66,7 @@ export async function requestDeviceCode(): Promise<DeviceCode> {
   if (!id) {
     throw new DeviceFlowError(
       'no_client_id',
-      'Pilcrow has no GitHub client ID configured yet. Run setup, or connect with the GitHub CLI.',
+      'Marky McMarkface has no GitHub client ID configured yet. Run setup, or connect with the GitHub CLI.',
     );
   }
   const body = await postJson(DEVICE_CODE_URL, { client_id: id, scope: SCOPES });
@@ -84,7 +84,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  */
 export async function pollForToken(device: DeviceCode, signal?: AbortSignal): Promise<string> {
   const id = clientId();
-  if (!id) throw new DeviceFlowError('no_client_id', 'Pilcrow has no GitHub client ID configured yet.');
+  if (!id) throw new DeviceFlowError('no_client_id', 'Marky McMarkface has no GitHub client ID configured yet.');
 
   let interval = device.interval;
   const deadline = Date.now() + device.expires_in * 1000;
@@ -127,7 +127,7 @@ export async function revokeGrant(token: string): Promise<boolean> {
     headers: {
       Accept: 'application/vnd.github+json',
       Authorization: `Basic ${Buffer.from(`${id}:${secret}`).toString('base64')}`,
-      'User-Agent': 'pilcrow',
+      'User-Agent': 'marky-mcmarkface',
     },
     body: JSON.stringify({ access_token: token }),
   });

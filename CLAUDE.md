@@ -1,7 +1,7 @@
-# Pilcrow ¶ — working in this repo
+# Marky McMarkface ¶ — working in this repo
 
 Review Markdown pull requests as rendered documents: file tree, rich diff, drag-select prose
-comments that round-trip to real GitHub review comments. Local-first; there is no Pilcrow server.
+comments that round-trip to real GitHub review comments. Local-first; there is no Marky McMarkface server.
 
 ## The one architectural rule
 
@@ -39,7 +39,7 @@ pnpm build
 npx tsc --noEmit -p tsconfig.json
 ```
 
-**After touching `render.ts`, `anchoring.ts`, or anything that emits `data-pilcrow-*`, run the
+**After touching `render.ts`, `anchoring.ts`, or anything that emits `data-marky-mcmarkface-*`, run the
 gate.** It is the only thing standing between a refactor and silently misplaced review comments:
 
 ```bash

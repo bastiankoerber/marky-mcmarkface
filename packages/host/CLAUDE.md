@@ -1,4 +1,4 @@
-# `@pilcrow/host`
+# `@marky-mcmarkface/host`
 
 React 19 + Vite. The viewer registry, the dashboard, and the three-pane review UI.
 
@@ -33,10 +33,10 @@ Everything goes through the local server, which owns the token and the polling.
 
 **5. The document and the rail share one scroll container.**
 
-`.reading-area` is the scroller and carries `data-pilcrow-scroll`. Giving the document and the
+`.reading-area` is the scroller and carries `data-marky-mcmarkface-scroll`. Giving the document and the
 rail separate scrollers is what made comment cards freeze in place while the prose scrolled away
 — the offsets were right, but applied in a coordinate space that never moved. `MarkdownViewer`
-also finds this element via `root.closest('[data-pilcrow-scroll]')` for scroll-to-anchor, so the
+also finds this element via `root.closest('[data-marky-mcmarkface-scroll]')` for scroll-to-anchor, so the
 attribute and the scroller must stay on the same element.
 
 Card positions are computed in that scroller's content space:

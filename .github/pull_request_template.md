@@ -12,7 +12,7 @@
 - [ ] `pnpm vitest run`
 - [ ] `pnpm build`
 
-If you touched the renderer, anchoring, or anything emitting `data-pilcrow-*`:
+If you touched the renderer, anchoring, or anything emitting `data-marky-mcmarkface-*`:
 
 - [ ] `pnpm spike:anchoring --offline` passes
 - [ ] `pnpm spike:anchoring --offline --corrupt 7` **fails** (the gate still has teeth)

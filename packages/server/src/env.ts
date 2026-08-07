@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
  * Deliberately hand-rolled: this needs to parse `KEY=value` and nothing else, and a dependency
  * that runs at startup in a process holding a GitHub token is a dependency worth not having.
  *
- * Real environment variables always win, so `PILCROW_PORT=1234 pnpm dev` behaves as expected and
+ * Real environment variables always win, so `MARKY_MCMARKFACE_PORT=1234 pnpm dev` behaves as expected and
  * CI is never overridden by a stray file.
  */
 export function loadDotEnv(): void {

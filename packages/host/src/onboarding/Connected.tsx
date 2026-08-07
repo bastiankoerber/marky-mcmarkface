@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { AuthStatus } from '../api.js';
+import { BrandIcon } from '../BrandIcon.jsx';
 
 /**
  * The moment after connecting.
@@ -28,9 +29,7 @@ export function Connected({ status, onDone }: { status: AuthStatus; onDone: () =
         {status.avatarUrl ? (
           <img className="avatar-lg rise" src={status.avatarUrl} alt="" />
         ) : (
-          <div className="mark" aria-hidden="true">
-            ¶
-          </div>
+          <BrandIcon className="mark-logo rise" size={104} />
         )}
         <h1 className="wordmark rise">Hello, {status.login}</h1>
         <p className="lede rise delay">You're connected.</p>

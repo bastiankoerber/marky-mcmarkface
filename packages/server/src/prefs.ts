@@ -1,9 +1,8 @@
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { DATA_DIR } from './paths.js';
 
-const DIR = join(homedir(), '.pilcrow');
-const FILE = join(DIR, 'prefs.json');
+const FILE = join(DATA_DIR, 'prefs.json');
 
 export interface Prefs {
   /** Repos the user pinned. Pinned repos sort first; nothing is ever hidden by this. */
@@ -56,8 +55,8 @@ function sanitisePatch(patch: Record<string, unknown>): Partial<Prefs> {
 export async function writePrefs(patch: Record<string, unknown>): Promise<Prefs> {
   const next = { ...(await readPrefs()), ...sanitisePatch(patch) };
   cache = next;
-  await mkdir(DIR, { recursive: true, mode: 0o700 });
-  await chmod(DIR, 0o700).catch(() => {});
+  await mkdir(DATA_DIR, { recursive: true, mode: 0o700 });
+  await chmod(DATA_DIR, 0o700).catch(() => {});
   await writeFile(FILE, JSON.stringify(next, null, 2), 'utf8');
   return next;
 }
