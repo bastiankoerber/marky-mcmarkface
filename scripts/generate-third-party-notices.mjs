@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
@@ -12,6 +12,43 @@ const licenseGroups = JSON.parse(
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const packages = new Map();
+const installedPackages = new Map();
+const visitedNodeModules = new Set();
+
+function indexPackage(packagePath) {
+  const manifestPath = join(packagePath, 'package.json');
+  if (!existsSync(manifestPath)) return;
+
+  const pkg = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  if (pkg.name && pkg.version) installedPackages.set(`${pkg.name}@${pkg.version}`, packagePath);
+
+  indexNodeModules(join(packagePath, 'node_modules'));
+}
+
+function indexNodeModules(nodeModulesPath) {
+  if (!existsSync(nodeModulesPath)) return;
+
+  const realPath = realpathSync(nodeModulesPath);
+  if (visitedNodeModules.has(realPath)) return;
+  visitedNodeModules.add(realPath);
+
+  for (const entry of readdirSync(nodeModulesPath, { withFileTypes: true })) {
+    if (entry.name.startsWith('.')) continue;
+
+    const entryPath = join(nodeModulesPath, entry.name);
+    if (entry.name.startsWith('@')) {
+      for (const scopedEntry of readdirSync(entryPath, { withFileTypes: true })) {
+        indexPackage(join(entryPath, scopedEntry.name));
+      }
+    } else {
+      indexPackage(entryPath);
+    }
+  }
+}
+
+// The hoisted linker keeps secondary versions beside their direct dependants. Index only package
+// boundaries and nested node_modules directories, avoiding a costly walk through package files.
+indexNodeModules(join(projectRoot, 'node_modules'));
 
 for (const entries of Object.values(licenseGroups)) {
   for (const dependency of entries) {
@@ -19,10 +56,14 @@ for (const entries of Object.values(licenseGroups)) {
     // license. Listing only the parent keeps this file deterministic across build machines.
     if (dependency.name.startsWith('@napi-rs/keyring-')) continue;
 
-    // With the hoisted linker, pnpm can report a virtual-store path that is absent on Linux even
-    // though the package is installed at the root. Prefer the reported paths, then resolve the
-    // hoisted location. Reading package.json gives us the actual installed version in either case.
-    const candidatePaths = [...dependency.paths, join(projectRoot, 'node_modules', dependency.name)];
+    // With the hoisted linker, pnpm can report a virtual-store path that is absent on Linux.
+    // Prefer valid reported paths, then resolve every requested version from the installed tree.
+    const candidatePaths = [
+      ...dependency.paths,
+      ...dependency.versions.map((version) =>
+        installedPackages.get(`${dependency.name}@${version}`),
+      ),
+    ].filter(Boolean);
     for (const packagePath of new Set(candidatePaths)) {
       if (!existsSync(join(packagePath, 'package.json'))) continue;
       const pkg = JSON.parse(readFileSync(join(packagePath, 'package.json'), 'utf8'));
