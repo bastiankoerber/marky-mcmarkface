@@ -44,7 +44,9 @@ export const SCOPES = 'repo read:org';
  * need to match the port specified in the callback URL for the app", so one registration covers
  * whichever port we actually bind. Use 127.0.0.1, never localhost (RFC 8252 §7.3).
  */
-const BUNDLED_CLIENT_ID = '';
+// OAuth client IDs identify an application but do not authenticate it. Shipping this value lets
+// every installation use GitHub's device flow without asking each user to register another app.
+const BUNDLED_CLIENT_ID = 'Ov23liPv4kOFxOGz8Wf0';
 const BUNDLED_CLIENT_SECRET = '';
 
 export interface OAuthCredentials {

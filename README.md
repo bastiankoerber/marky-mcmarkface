@@ -95,23 +95,23 @@ unchanged prose says so instead of letting you write a comment that gets rejecte
 
 ## Connecting
 
-Marky McMarkface needs no setup and registers nothing. If you have the GitHub CLI authenticated —
-`gh auth status` — the first screen offers **Continue as @you** and that is the whole flow. It
-reuses the authorisation you already granted `gh`; no app to create, no codes to type, no
-credentials to paste.
+Marky McMarkface ships with the public Client ID of its GitHub OAuth app, so users never have to
+register an application or paste configuration into the app. If you have the GitHub CLI
+authenticated — `gh auth status` — the first screen offers **Continue as @you** and that is the
+whole flow. It reuses the authorisation you already granted `gh`; no codes or credentials to
+paste. Without the CLI, **Connect GitHub** starts GitHub's device flow using the bundled app.
 
 If `gh` is not set up, or your org blocks it, two other ways in:
 
 - **Paste a fine-grained token** — good for GitHub Enterprise Server, or orgs that do not permit
   OAuth apps. Needs *Pull requests: read and write* on the repositories you review.
-- **Register your own OAuth app** — optional, and only worth it if you want the browser sign-in
-  button instead of the CLI. The setup screen walks through it and takes about a minute; supply a
-  client secret and sign-in is one click, leave it out and Marky McMarkface uses device codes.
+- **Use your own OAuth app** — optional for forks or organisations that do not permit the bundled
+  app. Set its Client ID in `.env`; adding its client secret enables one-click browser sign-in,
+  while leaving the secret empty uses device codes.
 
-A fork can commit its own client ID to `BUNDLED_CLIENT_ID` in
-`packages/server/src/auth/oauth.ts`, which is what `gh` and VS Code do with theirs — but nobody
-has to, and this repository deliberately ships it empty rather than embedding credentials that
-would then belong to whoever cloned it.
+A fork can replace `BUNDLED_CLIENT_ID` in `packages/server/src/auth/oauth.ts` with its own public
+Client ID. The bundled value is an application identifier, not a credential; no client secret is
+committed.
 
 Marky McMarkface requests `repo` and `read:org` — the minimum classic OAuth scopes that support
 private pull requests and posting reviews, though `repo` authorises more than the application

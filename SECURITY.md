@@ -79,10 +79,13 @@ network loads except local, data, and GitHub-hosted images, so privacy does not 
 private-repo scope, and Marky McMarkface must write review comments, so `repo` is unavoidable rather than
 chosen. Users who object can supply a fine-grained token instead.
 
-## Client id and client secret in the repository
+## OAuth Client ID in the repository
 
-Marky McMarkface may ship an OAuth client id, and optionally a client secret, in source. This is
-deliberate and follows GitHub's documented guidance for public clients:
+Marky McMarkface ships its GitHub OAuth Client ID in source so every installation can use device
+flow without asking each user to register an application. A Client ID identifies the OAuth app;
+it does not authenticate the app or grant access to a GitHub account. No client secret is bundled.
+
+This is deliberate and follows GitHub's documented guidance for public clients:
 
 > If your app is a public client (a native app that runs on the user's device, CLI utility, or
 > single-page web application), you cannot secure your client secret. You will have to ship the

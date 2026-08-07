@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { createVerifier, challengeFor, createState, statesMatch, beginFlow, takeFlow, clearFlow } from './oauth.js';
+import {
+  appClientId,
+  beginFlow,
+  challengeFor,
+  clearFlow,
+  createState,
+  createVerifier,
+  credentials,
+  statesMatch,
+  takeFlow,
+} from './oauth.js';
 
 /**
  * PKCE is the part of sign-in that has no visible failure mode: get the challenge wrong and
@@ -44,6 +54,18 @@ describe('state', () => {
     expect(statesMatch(createState(), createState())).toBe(false);
     expect(statesMatch('short', createState())).toBe(false);
     expect(statesMatch('', '')).toBe(true);
+  });
+});
+
+describe('bundled registration', () => {
+  beforeEach(() => {
+    delete process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_ID;
+    delete process.env.MARKY_MCMARKFACE_GITHUB_CLIENT_SECRET;
+  });
+
+  it('ships the public app identifier for device flow without bundling a secret', () => {
+    expect(appClientId()).toBe('Ov23liPv4kOFxOGz8Wf0');
+    expect(credentials()).toBeNull();
   });
 });
 
