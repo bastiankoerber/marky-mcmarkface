@@ -106,6 +106,12 @@ Two rules:
 2. **Degrade in width, never in position.** If you can only locate the enclosing block, return
    the block's span. A wider highlight is a UI compromise; a wrong one is a wrong review comment.
 
+If a viewer renders document-authored images, pass their source through
+`host.resolveImageUrl(source, documentPath)` when that optional method is present. The host owns
+repository access and returns either a safe loadable URL or `null`; a viewer must not call GitHub
+directly or fall back to loading a rejected external URL. Existing hosts may omit the method, so
+contributed viewers should degrade to alt text when it is unavailable.
+
 The markdown viewer does this by stamping `data-marky-mcmarkface-pos="<start>:<end>"` on every element
 during render, plus `data-marky-mcmarkface-x` when that element's text maps 1:1 onto the source. See
 `packages/viewers/markdown/src/render.ts` — the technique generalises to any format you render

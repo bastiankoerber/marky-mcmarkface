@@ -77,6 +77,11 @@ page.
 source lines you meant and posts a normal GitHub review comment there. Existing threads appear
 in the margin beside the text they refer to, with replies and resolve.
 
+**Shows the document's images.** Relative and reference-style Markdown images are resolved from
+the exact pull-request commit, including in private repositories. Missing or blocked images get
+an explicit placeholder; arbitrary external images remain blocked so opening a document cannot
+be used as a tracking pixel.
+
 **Nothing is sent until you submit.** Comments collect into one review, the way GitHub's own
 review model works — the author gets a single notification rather than a drip of emails while
 you read. Drafts survive a reload and are listed on the dashboard, so an unsubmitted review is

@@ -141,11 +141,18 @@ describe('a pull request cannot phone home while it is rendered', () => {
   it('keeps local, data, and GitHub-hosted images', () => {
     const out = sanitize(
       '<img src="/fonts/local.png"><img src="data:image/png;base64,AA==">' +
-        '<img src="https://raw.githubusercontent.com/org/repo/main/image.png">',
+        '<img src="https://raw.githubusercontent.com/org/repo/main/image.png">' +
+        '<img src="https://github.com/user-attachments/assets/abc-123">',
       window,
     );
     expect(out).toContain('/fonts/local.png');
     expect(out).toContain('data:image/png;base64,AA==');
     expect(out).toContain('raw.githubusercontent.com');
+    expect(out).toContain('github.com/user-attachments/assets/abc-123');
+  });
+
+  it('does not treat arbitrary github.com pages as image hosts', () => {
+    const out = sanitize('<img src="https://github.com/org/private-repo/blob/main/secret.png">', window);
+    expect(out).not.toContain('github.com');
   });
 });

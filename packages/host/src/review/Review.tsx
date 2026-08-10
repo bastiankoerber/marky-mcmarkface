@@ -6,6 +6,7 @@ import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
 import { CommentRail, type RailPending, type RailThread } from './CommentRail.jsx';
 import { loadDrafts, saveDrafts, type LocalComment } from './draftStore.js';
+import { resolveReviewImageUrl } from './imageUrl.js';
 
 type Mode = 'rich' | 'final' | 'source';
 
@@ -154,9 +155,11 @@ export function Review({
       },
       commentableRanges: () => file?.patch.rightLines ?? [],
       requestComment: () => {},
+      resolveImageUrl: (source, documentPath) =>
+        resolveReviewImageUrl(source, documentPath, pr?.imageBaseUrl),
       theme,
     }),
-    [headSource, commentableAt, file, theme],
+    [headSource, commentableAt, file, pr?.imageBaseUrl, theme],
   );
 
   const addComment = () => {

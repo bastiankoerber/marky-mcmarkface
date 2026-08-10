@@ -89,6 +89,11 @@ export function localOnly(allowedOrigins: string[]): MiddlewareHandler {
 
     await next();
 
-    for (const [name, value] of Object.entries(browserSecurityHeaders())) c.header(name, value);
+    // A resource route may need a stricter CSP (repository SVGs use default-src 'none'). Keep
+    // that one deliberate override; all other security headers remain centrally authoritative.
+    for (const [name, value] of Object.entries(browserSecurityHeaders())) {
+      if (name === 'Content-Security-Policy' && c.res.headers.has(name)) continue;
+      c.header(name, value);
+    }
   };
 }

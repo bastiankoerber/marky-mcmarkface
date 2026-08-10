@@ -713,6 +713,17 @@ input, textarea {
 .md-body tbody tr:nth-child(even) { background: color-mix(in oklab, var(--ink-900) 2.5%, transparent); }
 .md-body a { color: var(--accent); }
 .md-body img { max-width: 100%; }
+.md-image-unavailable {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.35em 0.65em;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-xs);
+  color: var(--ink-700);
+  background: var(--desk-sunk);
+  font-family: var(--font-ui);
+  font-size: var(--ui-sm);
+}
 
 /*
  * Proofreader's marks, not diff blocks.

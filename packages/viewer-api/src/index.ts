@@ -124,6 +124,14 @@ export interface ViewerHost {
   /** Which source lines sit inside a diff hunk. The host greys out everything else. */
   commentableRanges(side: Side): Array<[number, number]>;
   requestComment(selection: SourceRange): void;
+  /**
+   * Turn a document-authored image source into a URL the viewer may load.
+   *
+   * The host owns resource access because it owns the document's trust boundary. A viewer gets
+   * back a loadable URL or null; it never needs repository, credential, or provider details.
+   * Optional so existing third-party viewers and hosts remain source-compatible.
+   */
+  resolveImageUrl?: (source: string, documentPath: string) => string | null;
   theme: 'light' | 'dark';
 }
 

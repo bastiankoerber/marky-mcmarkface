@@ -14,6 +14,11 @@ import { dirname, join, resolve } from 'node:path';
 import { GitHubClient } from './github/client.js';
 import { fetchPr } from './github/pr.js';
 import {
+  clearAssetScopes,
+  issueAssetScope,
+} from './github/assets.js';
+import { repositoryImageResponse } from './github/repository-image.js';
+import {
   submitReview,
   replyToComment,
   setThreadResolved,
@@ -102,6 +107,7 @@ async function identifyToken(token: string, source: StoredToken['source']): Prom
 }
 
 function activate(value: StoredToken, mode: 'keychain' | 'session'): void {
+  clearAssetScopes();
   stored = value;
   pending = null;
   locked = false;
@@ -374,6 +380,7 @@ app.post('/api/auth/storage/unlock', async (c) => {
 
 app.post('/api/auth/storage/forget', async (c) => {
   await clearToken();
+  clearAssetScopes();
   locked = false;
   return c.json({ ok: true });
 });
@@ -433,6 +440,7 @@ app.post('/api/auth/signout', async (c) => {
   locked = false;
   storageMode = null;
   client = null;
+  clearAssetScopes();
   poller.setClient(null);
   return c.json({ ok: true });
 });
@@ -476,7 +484,24 @@ app.get('/api/pr/:owner/:repo/:number', async (c) => {
   const { owner, repo } = c.req.param();
   const number = Number(c.req.param('number'));
   if (!Number.isInteger(number)) throw new HttpError(400, 'Bad pull request number.');
-  return c.json(await fetchPr(requireClient(), owner, repo, number));
+  const detail = await fetchPr(requireClient(), owner, repo, number);
+  const capability = issueAssetScope({ owner, repo, sha: detail.headSha });
+  return c.json({ ...detail, imageBaseUrl: `/_marky/image/${capability}` });
+});
+
+/**
+ * Browser image tags cannot carry X-Marky-McMarkface, so this deliberately sits outside /api.
+ * The random path segment is a much narrower authority: one repository at one immutable SHA.
+ */
+app.get('/_marky/image/:capability', async (c) => {
+  // Invalid/expired image URLs reveal neither auth state nor an authored error message.
+  if (!client) return c.body(null, 404);
+  return repositoryImageResponse(
+    client,
+    c.req.param('capability'),
+    c.req.query('document') ?? '',
+    c.req.query('source') ?? '',
+  );
 });
 
 app.post('/api/pr/:owner/:repo/:number/review', async (c) => {

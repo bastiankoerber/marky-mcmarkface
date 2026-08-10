@@ -44,6 +44,12 @@ export default defineConfig({
           });
         },
       },
+      // Image elements cannot attach the API header. Their unguessable, PR-scoped capability
+      // authenticates this one read-only route instead; keep it same-origin in development.
+      '/_marky/image': {
+        target: SERVER,
+        changeOrigin: false,
+      },
     },
   },
   build: {

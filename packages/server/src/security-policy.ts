@@ -17,7 +17,7 @@ export function contentSecurityPolicy(viteDevelopment = false): string {
     "default-src 'self'",
     `script-src ${scripts}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: https://*.githubusercontent.com https://avatars.githubusercontent.com",
+    "img-src 'self' data: https://*.githubusercontent.com https://avatars.githubusercontent.com https://github.com/user-attachments/assets/",
     "media-src 'none'",
     "font-src 'self'",
     `connect-src ${connect}`,
