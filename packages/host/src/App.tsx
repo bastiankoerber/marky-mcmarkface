@@ -9,21 +9,21 @@ import { Connected } from './onboarding/Connected.jsx';
 import { Dashboard } from './dashboard/Dashboard.jsx';
 import { Review } from './review/Review.jsx';
 import { BrandIcon } from './BrandIcon.jsx';
+import { hashForView, parseHash, type View } from './route.js';
 
 type Data = DashboardData & { prefs: Prefs; staleError?: string | null };
-type View = { kind: 'dashboard' } | { kind: 'review'; owner: string; repo: string; number: number };
 
 export function App() {
   const [status, setStatus] = useState<AuthStatus | null>(null);
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [view, setView] = useState<View>(parseHash());
+  const [view, setView] = useState<View>(parseHash(window.location.hash));
   const [celebrating, setCelebrating] = useState(false);
   const { pref, theme, setPref } = useTheme();
 
   useEffect(() => {
-    const onHash = () => setView(parseHash());
+    const onHash = () => setView(parseHash(window.location.hash));
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -89,7 +89,7 @@ export function App() {
   }, []);
 
   const navigate = (next: View) => {
-    window.location.hash = next.kind === 'dashboard' ? '' : `#/pr/${next.owner}/${next.repo}/${next.number}`;
+    window.location.hash = hashForView(next);
     setView(next);
   };
 
@@ -142,8 +142,10 @@ export function App() {
           owner={view.owner}
           repo={view.repo}
           number={view.number}
+          initialPath={view.file ?? null}
           theme={theme}
           onBack={() => navigate({ kind: 'dashboard' })}
+          onPathChange={(file) => navigate({ ...view, file })}
         />
       ) : data ? (
         <Dashboard
@@ -163,12 +165,6 @@ export function App() {
 }
 
 const emptyPrefs: Prefs = { pinnedRepos: [], pinCardDismissed: false, viewerOverrides: {}, viewed: [] };
-
-function parseHash(): View {
-  const match = /^#\/pr\/([^/]+)\/([^/]+)\/(\d+)$/.exec(window.location.hash);
-  if (!match) return { kind: 'dashboard' };
-  return { kind: 'review', owner: match[1]!, repo: match[2]!, number: Number(match[3]) };
-}
 
 /** `#/connected?ok=1` or `#/connected?error=…`, written by the server's OAuth callback. */
 function readConnectOutcome(): { error?: string } | null {
