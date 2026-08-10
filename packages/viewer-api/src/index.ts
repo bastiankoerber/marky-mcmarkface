@@ -124,6 +124,11 @@ export interface ViewerHost {
   /** Which source lines sit inside a diff hunk. The host greys out everything else. */
   commentableRanges(side: Side): Array<[number, number]>;
   requestComment(selection: SourceRange): void;
+  /**
+   * Offer a rendered link to the host. Returning true means the host accepted navigation and
+   * the viewer must prevent the browser's default action.
+   */
+  openLink?(href: string, documentPath: string): boolean;
   theme: 'light' | 'dark';
 }
 

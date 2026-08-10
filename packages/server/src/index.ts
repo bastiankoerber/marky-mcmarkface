@@ -13,6 +13,7 @@ import { dirname, join, resolve } from 'node:path';
 
 import { GitHubClient } from './github/client.js';
 import { fetchPr } from './github/pr.js';
+import { fetchRepositoryFile, isRepositoryFilePath } from './github/repository-file.js';
 import {
   submitReview,
   replyToComment,
@@ -477,6 +478,17 @@ app.get('/api/pr/:owner/:repo/:number', async (c) => {
   const number = Number(c.req.param('number'));
   if (!Number.isInteger(number)) throw new HttpError(400, 'Bad pull request number.');
   return c.json(await fetchPr(requireClient(), owner, repo, number));
+});
+
+app.get('/api/pr/:owner/:repo/:number/file', async (c) => {
+  const { owner, repo } = c.req.param();
+  const number = Number(c.req.param('number'));
+  const path = c.req.query('path') ?? '';
+  if (!Number.isInteger(number)) throw new HttpError(400, 'Bad pull request number.');
+  if (!isRepositoryFilePath(path)) throw new HttpError(400, 'That repository file path is not supported.');
+  const file = await fetchRepositoryFile(requireClient(), owner, repo, path);
+  if (!file) throw new HttpError(404, `Could not find that file on the repository's latest default branch.`);
+  return c.json(file);
 });
 
 app.post('/api/pr/:owner/:repo/:number/review', async (c) => {
