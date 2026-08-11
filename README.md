@@ -19,6 +19,13 @@ the page — or it happens in Google Docs and never makes it back into the repos
 
 Marky McMarkface is the missing half: the rendered view, with commenting.
 
+## Image fallback test
+
+This image is intentionally absent from the pull request branch and available only at the
+pull request's base commit. Marky McMarkface should render it through the base-image fallback.
+
+![Marky McMarkface base-commit fallback test](packages/host/public/icons/icon-512.png)
+
 ## Installation
 
 ### Desktop application for macOS
