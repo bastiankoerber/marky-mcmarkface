@@ -485,13 +485,14 @@ app.get('/api/pr/:owner/:repo/:number', async (c) => {
   const number = Number(c.req.param('number'));
   if (!Number.isInteger(number)) throw new HttpError(400, 'Bad pull request number.');
   const detail = await fetchPr(requireClient(), owner, repo, number);
-  const capability = issueAssetScope({ owner, repo, sha: detail.headSha });
+  const capability = issueAssetScope({ owner, repo, sha: detail.headSha, baseSha: detail.baseSha });
   return c.json({ ...detail, imageBaseUrl: `/_marky/image/${capability}` });
 });
 
 /**
  * Browser image tags cannot carry X-Marky-McMarkface, so this deliberately sits outside /api.
- * The random path segment is a much narrower authority: one repository at one immutable SHA.
+ * The random path segment is a much narrower authority: one repository at the PR's immutable
+ * head and base SHAs.
  */
 app.get('/_marky/image/:capability', async (c) => {
   // Invalid/expired image URLs reveal neither auth state nor an authored error message.

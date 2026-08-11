@@ -27,10 +27,23 @@ export async function repositoryImageResponse(
 
   try {
     const encoded = encodedRepositoryPath(path);
-    const asset = await client.restBytes(
-      `/repos/${encodeURIComponent(scope.owner)}/${encodeURIComponent(scope.repo)}/contents/${encoded}?ref=${encodeURIComponent(scope.sha)}`,
-      MAX_REPOSITORY_IMAGE_BYTES,
-    );
+    const assetAt = (ref: string) =>
+      client.restBytes(
+        `/repos/${encodeURIComponent(scope.owner)}/${encodeURIComponent(scope.repo)}/contents/${encoded}?ref=${encodeURIComponent(ref)}`,
+        MAX_REPOSITORY_IMAGE_BYTES,
+      );
+
+    let asset: GitHubBinary;
+    try {
+      asset = await assetAt(scope.sha);
+    } catch (err) {
+      // A PR branch can be behind its base branch. Preserve head-first rendering, but let a
+      // relative image added to main since the branch diverged remain visible in the document.
+      if (!(err instanceof GitHubError && err.status === 404 && scope.baseSha && scope.baseSha !== scope.sha)) {
+        throw err;
+      }
+      asset = await assetAt(scope.baseSha);
+    }
     const contentType = repositoryImageMime(asset.body);
     if (!contentType) return empty(415);
 

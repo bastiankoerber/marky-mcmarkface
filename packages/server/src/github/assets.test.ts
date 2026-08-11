@@ -38,8 +38,8 @@ describe('repository image paths', () => {
 });
 
 describe('asset capabilities', () => {
-  it('are unguessable and bound to one immutable repository commit', () => {
-    const scope = { owner: 'octo', repo: 'docs', sha: 'abc123' };
+  it('are unguessable and bound to the immutable PR head and base commits', () => {
+    const scope = { owner: 'octo', repo: 'docs', sha: 'abc123', baseSha: 'base456' };
     const token = issueAssetScope(scope);
     expect(token).toMatch(/^[A-Za-z0-9_-]{32}$/);
     expect(readAssetScope(token)).toEqual(scope);

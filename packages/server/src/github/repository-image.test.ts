@@ -7,12 +7,15 @@ afterEach(() => clearAssetScopes());
 
 const png = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer as ArrayBuffer;
 
-function client(result: GitHubBinary | Error, seen: string[] = []): RepositoryImageClient {
+function client(result: GitHubBinary | Error | Array<GitHubBinary | Error>, seen: string[] = []): RepositoryImageClient {
+  let call = 0;
   return {
     async restBytes(path, maxBytes) {
       seen.push(`${path} ${maxBytes}`);
-      if (result instanceof Error) throw result;
-      return result;
+      const current = Array.isArray(result) ? result[Math.min(call++, result.length - 1)] : result;
+      if (!current) throw new Error('Test image client has no configured response.');
+      if (current instanceof Error) throw current;
+      return current;
     },
   };
 }
@@ -46,6 +49,42 @@ describe('repository image response', () => {
     const capability = issueAssetScope({ owner: 'octo', repo: 'docs', sha: 'abc' });
     expect((await repositoryImageResponse(fake, capability, 'README.md', '../../../secret.png')).status).toBe(400);
     expect(seen).toEqual([]);
+  });
+
+  it('falls back to the immutable base commit only when the image is absent from the head', async () => {
+    const capability = issueAssetScope({
+      owner: 'octo',
+      repo: 'docs',
+      sha: 'head123',
+      baseSha: 'main456',
+    });
+    const seen: string[] = [];
+    const response = await repositoryImageResponse(
+      client([new GitHubError(404, 'missing from head'), { body: png, contentType: 'image/png' }], seen),
+      capability,
+      'docs/readme.md',
+      'images/diagram.png',
+    );
+
+    expect(response.status).toBe(200);
+    expect(seen).toEqual([
+      `/repos/octo/docs/contents/docs/images/diagram.png?ref=head123 ${MAX_REPOSITORY_IMAGE_BYTES}`,
+      `/repos/octo/docs/contents/docs/images/diagram.png?ref=main456 ${MAX_REPOSITORY_IMAGE_BYTES}`,
+    ]);
+  });
+
+  it('does not fall back to the base commit for non-missing head failures', async () => {
+    const capability = issueAssetScope({ owner: 'octo', repo: 'docs', sha: 'head', baseSha: 'base' });
+    const seen: string[] = [];
+    const response = await repositoryImageResponse(
+      client(new GitHubError(413, 'too large'), seen),
+      capability,
+      'README.md',
+      'huge.png',
+    );
+
+    expect(response.status).toBe(413);
+    expect(seen).toHaveLength(1);
   });
 
   it('rejects non-image bytes and maps safe upstream failures without returning their bodies', async () => {

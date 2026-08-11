@@ -34,12 +34,13 @@ telling its author that a private document was opened, from your IP, at that mom
 script involved.
 
 Repository-relative Markdown images are fetched by the local server at the pull request's exact
-head SHA. An image element cannot send the API's custom header, so the PR response includes a
-random, in-memory capability limited to that repository and immutable commit. It expires after
-twelve hours, is cleared when credentials change, and grants no access to the GitHub token or
-other API routes. The server rejects paths outside the repository, files over 10 MB, and bytes
-that do not match a supported image signature. SVG responses receive their own sandboxed
-`default-src 'none'` policy so embedded resources cannot create a second network channel.
+head SHA. If GitHub reports the path missing there, the server retries the pull request's exact
+base SHA. An image element cannot send the API's custom header, so the PR response includes a
+random, in-memory capability limited to that repository and those two immutable commits. It
+expires after twelve hours, is cleared when credentials change, and grants no access to the
+GitHub token or other API routes. The server rejects paths outside the repository, files over 10
+MB, and bytes that do not match a supported image signature. SVG responses receive their own
+sandboxed `default-src 'none'` policy so embedded resources cannot create a second network channel.
 
 The server binds `127.0.0.1` only, never `0.0.0.0`.
 

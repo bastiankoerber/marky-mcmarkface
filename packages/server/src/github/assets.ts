@@ -8,6 +8,8 @@ export interface AssetScope {
   owner: string;
   repo: string;
   sha: string;
+  /** Immutable PR base commit, used only when the asset is absent from the head commit. */
+  baseSha?: string;
 }
 
 interface StoredScope extends AssetScope {
@@ -24,8 +26,8 @@ function pruneScopes(now = Date.now()): void {
 
 /**
  * An image tag cannot carry the API's CSRF header, so it authenticates with a narrow capability
- * instead. The capability grants read access to one immutable repository commit, not to the
- * GitHub token or the rest of the local API, and exists only for this server process.
+ * instead. The capability grants read access to the PR's immutable head and base commits, not
+ * to the GitHub token or the rest of the local API, and exists only for this server process.
  */
 export function issueAssetScope(scope: AssetScope): string {
   pruneScopes();
@@ -42,7 +44,12 @@ export function readAssetScope(token: string): AssetScope | null {
     scopes.delete(token);
     return null;
   }
-  return { owner: scope.owner, repo: scope.repo, sha: scope.sha };
+  return {
+    owner: scope.owner,
+    repo: scope.repo,
+    sha: scope.sha,
+    ...(scope.baseSha ? { baseSha: scope.baseSha } : {}),
+  };
 }
 
 export function clearAssetScopes(): void {

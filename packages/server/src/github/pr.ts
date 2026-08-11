@@ -48,7 +48,7 @@ export interface PrDetail {
   headRef: string;
   baseSha: string;
   headSha: string;
-  /** Opaque localhost capability for images at headSha. Added by the HTTP route. */
+  /** Opaque localhost capability for images at headSha, then baseSha. Added by the HTTP route. */
   imageBaseUrl?: string;
   viewerLogin: string;
   /** True when the viewer is the PR author — GitHub forbids approving your own PR. */
