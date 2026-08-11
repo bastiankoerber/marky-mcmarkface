@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { SourceRange } from '@marky-mcmarkface/viewer-api';
 import type { PrDetail } from '../api.js';
 
 export interface RailPending {
@@ -8,6 +9,7 @@ export interface RailPending {
   line: number;
   body: string;
   quote: string;
+  range: SourceRange | null;
   top: number;
   /** True when this is attached to the file rather than a line. */
   fileLevel?: boolean;
@@ -15,6 +17,7 @@ export interface RailPending {
 
 export interface RailThread {
   thread: PrDetail['threads'][number];
+  range: SourceRange | null;
   top: number;
 }
 
@@ -56,7 +59,7 @@ export function CommentRail({
   onRemove: (key: string) => void;
   onReply: (commentId: number, body: string) => Promise<void>;
   onResolve: (threadId: string, resolved: boolean) => Promise<void>;
-  onFocus: (line: number) => void;
+  onFocus: (range: SourceRange | null) => void;
 }) {
   const entries = useMemo(
     () =>
@@ -284,10 +287,10 @@ function PendingCard({
   top: number;
   innerRef: CardRef;
   onRemove: (key: string) => void;
-  onFocus: (line: number) => void;
+  onFocus: (range: SourceRange | null) => void;
 }) {
   return (
-    <article ref={innerRef} className="card pending" style={{ top }} onClick={() => onFocus(card.startLine)}>
+    <article ref={innerRef} className="card pending" style={{ top }} onClick={() => onFocus(card.range)}>
       <header>
         <span className="tag">pending</span>
         <span className="muted small">
@@ -326,7 +329,7 @@ function ThreadCard({
   innerRef: CardRef;
   onReply: (commentId: number, body: string) => Promise<void>;
   onResolve: (threadId: string, resolved: boolean) => Promise<void>;
-  onFocus: (line: number) => void;
+  onFocus: (range: SourceRange | null) => void;
 }) {
   const { thread } = card;
   const [reply, setReply] = useState('');
@@ -340,7 +343,7 @@ function ThreadCard({
       ref={innerRef}
       className={`card thread ${thread.isResolved ? 'resolved' : ''} ${thread.isOutdated ? 'outdated' : ''}`}
       style={{ top }}
-      onClick={() => thread.line && onFocus(thread.line)}
+      onClick={() => onFocus(card.range)}
     >
       <header>
         <strong>{thread.comments[0]?.author}</strong>

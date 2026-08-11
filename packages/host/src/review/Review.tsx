@@ -5,6 +5,7 @@ import { createRegistry } from '../viewers/index.js';
 import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
 import { CommentRail, type RailPending, type RailThread } from './CommentRail.jsx';
+import { commentRange } from './commentRange.js';
 import { loadDrafts, saveDrafts, type LocalComment } from './draftStore.js';
 import { resolveReviewImageUrl } from './imageUrl.js';
 
@@ -176,6 +177,7 @@ export function Review({
         // line. The quote in the body is what tells the author which passage was meant.
         ...(draft.commentable ? {} : { subjectType: 'file' as const }),
         body: `> ${draft.quote.replace(/\n/g, '\n> ')}\n\n${draftBody.trim()}`,
+        range: draft.range,
       },
     ]);
     setDraft(null);
@@ -192,8 +194,8 @@ export function Review({
         event,
         body: summary,
         commitId: pr.headSha,
-        // Strip the local id; it is a UI concern and has no meaning to GitHub.
-        comments: pending.map(({ id: _id, ...comment }) => comment),
+        // Strip local-only annotation metadata; neither field has meaning to GitHub.
+        comments: pending.map(({ id: _id, range: _range, ...comment }) => comment),
       });
       setPending([]);
       setSummary('');
@@ -255,6 +257,7 @@ export function Review({
           line: c.line,
           body: c.body.replace(/^> .*\n\n/s, ''),
           quote: c.body.startsWith('>') ? (c.body.split('\n\n')[0] ?? '').replace(/^> /gm, '') : '',
+          range: c.range ?? commentRange(headSource, c),
           top: topFor(c.startLine ?? c.line),
           fileLevel: c.subjectType === 'file',
         })),
@@ -269,7 +272,16 @@ export function Review({
        */
       railThreads: (pr?.threads ?? [])
         .filter((t) => t.path === activePath && t.line !== null)
-        .map<RailThread>((t) => ({ thread: t, top: topFor(t.line!) })),
+        .map<RailThread>((t) => ({
+          thread: t,
+          range: commentRange(headSource, {
+            line: t.line!,
+            startLine: t.startLine,
+            body: t.comments[0]?.body ?? '',
+            side: t.side,
+          }),
+          top: topFor(t.startLine ?? t.line!),
+        })),
       archivedThreads: (pr?.threads ?? []).filter((t) => t.path === activePath && t.line === null),
     };
   }, [pending, pr?.threads, activePath, headSource, railTick]);
@@ -443,10 +455,16 @@ export function Review({
                 await api.resolveThread(threadId, isResolved);
                 setPr(await api.pr(owner, repo, number));
               }}
-              onFocus={(line) => {
+              onFocus={(range) => {
                 const impl = anchoringRef.current;
-                if (!impl || !headSource) return;
-                impl.scrollTo({ side: 'RIGHT', start: lineOffset(headSource, line), end: lineOffset(headSource, line) + 1 });
+                if (!impl || !range) return;
+                const anchored = impl.anchor(range);
+                if (anchored && 'startContainer' in anchored) {
+                  const selection = impl.contentContainer().ownerDocument.getSelection();
+                  selection?.removeAllRanges();
+                  selection?.addRange(anchored);
+                }
+                impl.scrollTo(range);
               }}
             />
           </aside>
