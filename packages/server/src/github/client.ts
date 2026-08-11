@@ -16,6 +16,11 @@ export interface RateSnapshot {
   reset: number;
 }
 
+export interface GitHubBinary {
+  body: ArrayBuffer;
+  contentType: string;
+}
+
 export class GitHubError extends Error {
   constructor(
     readonly status: number,
@@ -157,6 +162,46 @@ export class GitHubClient {
 
   async restRaw(path: string): Promise<string> {
     return this.rest<string>(path, { accept: 'application/vnd.github.raw' });
+  }
+
+  /** Binary REST GET for repository assets. The token is still sent only to api.github.com. */
+  async restBytes(path: string, maxBytes: number): Promise<GitHubBinary> {
+    const res = await fetch(`${API}${path}`, {
+      headers: this.#headers({ Accept: 'application/vnd.github.raw' }),
+    });
+    this.#readRate(res);
+    if (!res.ok) {
+      if (isRateLimited(res)) this.#noteBlocked(res);
+      throw githubResponseError(res, await safeBody(res));
+    }
+
+    const reported = Number(res.headers.get('content-length'));
+    if (Number.isFinite(reported) && reported > maxBytes) {
+      throw new GitHubError(413, 'Repository image is larger than the supported limit.');
+    }
+    const reader = res.body?.getReader();
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    if (reader) {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > maxBytes) {
+          await reader.cancel();
+          throw new GitHubError(413, 'Repository image is larger than the supported limit.');
+        }
+        chunks.push(value);
+      }
+    }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    const body = bytes.buffer;
+    return { body, contentType: res.headers.get('content-type') ?? 'application/octet-stream' };
   }
 
   async write<T>(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<T> {

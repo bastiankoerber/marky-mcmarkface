@@ -713,6 +713,17 @@ input, textarea {
 .md-body tbody tr:nth-child(even) { background: color-mix(in oklab, var(--ink-900) 2.5%, transparent); }
 .md-body a { color: var(--accent); }
 .md-body img { max-width: 100%; }
+.md-image-unavailable {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0.35em 0.65em;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-xs);
+  color: var(--ink-700);
+  background: var(--desk-sunk);
+  font-family: var(--font-ui);
+  font-size: var(--ui-sm);
+}
 
 /*
  * Proofreader's marks, not diff blocks.
@@ -763,13 +774,22 @@ del[data-marky-mcmarkface-del] {
 
 /* source diff -------------------------------------------------------------- */
 
-.srcdiff { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
-.srcdiff-row { display: flex; white-space: pre; }
+.srcdiff {
+  max-width: 100%;
+  overflow-x: auto;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/*
+ * Long source lines scroll inside the diff instead of widening the document-and-margin grid.
+ * max-content keeps the change wash behind the complete line; min-width keeps short rows flush
+ * with the available pane rather than shrinking to their text.
+ */
+.srcdiff-row { display: flex; width: max-content; min-width: 100%; white-space: pre; }
 .srcdiff-row.srcdiff-add { background: var(--add-wash); }
 .srcdiff-row.srcdiff-del { background: var(--del-wash); }
 .srcdiff-num { width: 42px; text-align: right; padding-right: 8px; color: var(--ink-500); user-select: none; flex: none; }
 .srcdiff-mark { width: 16px; flex: none; color: var(--ink-500); }
-.srcdiff-text { flex: 1; }
+.srcdiff-text { flex: none; }
 
 /* comment rail ------------------------------------------------------------- */
 

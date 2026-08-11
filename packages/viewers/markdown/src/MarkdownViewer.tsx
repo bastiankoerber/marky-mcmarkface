@@ -37,22 +37,30 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     const token = Math.random().toString(36).slice(2, 10);
     const head = normaliseSource(file.head ?? '');
     const headTree = parseMarkdown(head);
+    const resolveImageUrl = host.resolveImageUrl
+      ? (source: string) => host.resolveImageUrl!(source, file.path)
+      : undefined;
 
     // 'final' is the deliberate no-markup read. Everything else gets the diff — including a
     // newly added file, where `base` is null and every block is new. Skipping the diff there
     // would render an added file identically to an unchanged one.
     if (mode === 'final') {
-      return { html: sanitizeRenderedHtml(renderToHtml(head, headTree, { nonce: token })), nonce: token };
+      return {
+        html: sanitizeRenderedHtml(renderToHtml(head, headTree, { nonce: token, resolveImageUrl })),
+        nonce: token,
+      };
     }
 
     const base = file.base === null ? null : normaliseSource(file.base);
     const baseTree = base === null ? null : parseMarkdown(base);
     const diff = diffMarkdown(base, baseTree, head, headTree);
     return {
-      html: sanitizeRenderedHtml(renderToHtml(head, headTree, { blocks: diff.blocks, inline: diff.inline, nonce: token })),
+      html: sanitizeRenderedHtml(
+        renderToHtml(head, headTree, { blocks: diff.blocks, inline: diff.inline, nonce: token, resolveImageUrl }),
+      ),
       nonce: token,
     };
-  }, [file.head, file.base, mode]);
+  }, [file.head, file.base, file.path, host.resolveImageUrl, mode]);
 
   // Register the anchoring implementation. The host owns everything downstream of this — the
   // viewer's entire contribution to commenting is these five functions.
@@ -63,6 +71,33 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     const layoutListeners = new Set<() => void>();
     const observer = new ResizeObserver(() => layoutListeners.forEach((cb) => cb()));
     observer.observe(root);
+
+    // A blocked, missing, or unsupported image should not disappear as a tiny broken icon. The
+    // replacement is created after sanitisation, so hostile Markdown cannot borrow its class or
+    // hide arbitrary prose with it. Copy the image's source stamp so it remains commentable.
+    const imageCleanups: Array<() => void> = [];
+    for (const img of root.querySelectorAll('img')) {
+      let replaced = false;
+      const unavailable = () => {
+        if (replaced || !img.isConnected) return;
+        replaced = true;
+        const fallback = root.ownerDocument.createElement('span');
+        fallback.className = 'md-image-unavailable';
+        fallback.textContent = img.alt ? `Image unavailable: ${img.alt}` : 'Image unavailable';
+        for (const attribute of img.attributes) {
+          if (
+            attribute.name.startsWith('data-marky-mcmarkface-pos') ||
+            attribute.name === 'data-marky-mcmarkface-change'
+          ) {
+            fallback.setAttribute(attribute.name, attribute.value);
+          }
+        }
+        img.replaceWith(fallback);
+      };
+      img.addEventListener('error', unavailable);
+      imageCleanups.push(() => img.removeEventListener('error', unavailable));
+      if (!img.getAttribute('src') || (img.complete && img.naturalWidth === 0)) unavailable();
+    }
 
     const impl: AnchoringImpl = {
       describe: (range) => describeRange(root, range, 'RIGHT'),
@@ -89,6 +124,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     registerAnchoring(impl);
     return () => {
       observer.disconnect();
+      for (const cleanup of imageCleanups) cleanup();
       layoutListeners.clear();
       registerAnchoring(null);
     };

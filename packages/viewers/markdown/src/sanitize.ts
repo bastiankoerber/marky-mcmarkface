@@ -23,7 +23,9 @@ function isAllowedImageUrl(raw: string): boolean {
     const url = new URL(value);
     return (
       url.protocol === 'https:' &&
-      (url.hostname === 'avatars.githubusercontent.com' || url.hostname.endsWith('.githubusercontent.com'))
+      (url.hostname === 'avatars.githubusercontent.com' ||
+        url.hostname.endsWith('.githubusercontent.com') ||
+        (url.hostname === 'github.com' && url.pathname.startsWith('/user-attachments/assets/')))
     );
   } catch {
     return false;

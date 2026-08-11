@@ -125,6 +125,14 @@ export interface ViewerHost {
   commentableRanges(side: Side): Array<[number, number]>;
   requestComment(selection: SourceRange): void;
   /**
+   * Turn a document-authored image source into a URL the viewer may load.
+   *
+   * The host owns resource access because it owns the document's trust boundary. A viewer gets
+   * back a loadable URL or null; it never needs repository, credential, or provider details.
+   * Optional so existing third-party viewers and hosts remain source-compatible.
+   */
+  resolveImageUrl?: (source: string, documentPath: string) => string | null;
+  /**
    * Offer a rendered link to the host. Returning true means the host accepted navigation and
    * the viewer must prevent the browser's default action.
    */

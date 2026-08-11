@@ -1,3 +1,4 @@
+import type { SourceRange } from '@marky-mcmarkface/viewer-api';
 import type { PendingComment } from '../api.js';
 
 /**
@@ -5,7 +6,7 @@ import type { PendingComment } from '../api.js';
  * shows the active file's comments, so its indices are into a *filtered* list — using those to
  * splice the full buffer deletes the wrong comment as soon as two files have pending notes.
  */
-export type LocalComment = PendingComment & { id: string };
+export type LocalComment = PendingComment & { id: string; range?: SourceRange };
 
 export interface DraftBuffer {
   /** The commit the line numbers were measured against. */

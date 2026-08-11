@@ -44,6 +44,8 @@ export interface RenderOptions {
    * makes forged stamps unreadable. Empty (tests, the spike) keeps the bare attribute name.
    */
   nonce?: string;
+  /** Resolve an authored image source at the host's resource boundary. null means blocked. */
+  resolveImageUrl?: ((source: string) => string | null) | undefined;
 }
 
 interface Ctx {
@@ -52,6 +54,8 @@ interface Ctx {
   blockKind: Map<number, string>;
   ins: Array<{ start: number; end: number }>;
   del: Array<{ at: number; text: string }>;
+  definitions: Map<string, { url: string; title: string | null }>;
+  resolveImageUrl: ((source: string) => string | null) | undefined;
   depth: number;
 }
 
@@ -71,6 +75,25 @@ function attrs(ctx: Ctx, span: Span | null, exact = false): string {
     (exact ? ' data-marky-mcmarkface-x=""' : '') +
     (change ? ` data-marky-mcmarkface-change="${change}"` : '')
   );
+}
+
+function definitionKey(identifier: string): string {
+  return identifier.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+function collectDefinitions(node: Nodes, out: Ctx['definitions']): void {
+  if (node.type === 'definition') {
+    out.set(definitionKey(node.identifier), { url: node.url, title: node.title ?? null });
+  }
+  const maybeParent = node as { children?: Nodes[] };
+  for (const child of maybeParent.children ?? []) collectDefinitions(child, out);
+}
+
+function image(ctx: Ctx, node: Nodes, source: string, alt: string, title: string | null): string {
+  const resolved = ctx.resolveImageUrl ? ctx.resolveImageUrl(source) : source;
+  const src = resolved ? ` src="${esc(resolved)}"` : '';
+  const titleAttr = title ? ` title="${esc(title)}"` : '';
+  return `<img${src} alt="${esc(alt)}"${titleAttr}${attrs(ctx, spanOf(node))}>`;
 }
 
 /**
@@ -294,9 +317,13 @@ function renderNode(ctx: Ctx, node: Nodes): string {
     case 'linkReference':
       return wrap(ctx, node, 'a', () => children(ctx, node), ' data-marky-mcmarkface-ref=""');
     case 'image':
-      return `<img src="${esc(node.url)}" alt="${esc(node.alt ?? '')}"${attrs(ctx, spanOf(node))}>`;
-    case 'imageReference':
-      return `<img alt="${esc(node.alt ?? '')}"${attrs(ctx, spanOf(node))}>`;
+      return image(ctx, node, node.url, node.alt ?? '', node.title ?? null);
+    case 'imageReference': {
+      const definition = ctx.definitions.get(definitionKey(node.identifier));
+      return definition
+        ? image(ctx, node, definition.url, node.alt ?? '', definition.title)
+        : image(ctx, node, '', node.alt ?? '', null);
+    }
     /*
      * GFM tables: the first row is the header, and the `align` array applies per column.
      *
@@ -348,12 +375,17 @@ export function renderToHtml(source: string, tree: Nodes, options: RenderOptions
     if (b.head && b.kind !== 'unchanged') blockKind.set(b.head.start, b.kind);
   }
 
+  const definitions = new Map<string, { url: string; title: string | null }>();
+  collectDefinitions(tree, definitions);
+
   const ctx: Ctx = {
     source,
     posAttr: options.nonce ? `data-marky-mcmarkface-pos-${options.nonce}` : 'data-marky-mcmarkface-pos',
     blockKind,
     ins: (options.inline ?? []).filter((c): c is Extract<InlineChange, { kind: 'ins' }> => c.kind === 'ins'),
     del: (options.inline ?? []).filter((c): c is Extract<InlineChange, { kind: 'del' }> => c.kind === 'del'),
+    definitions,
+    resolveImageUrl: options.resolveImageUrl,
     depth: 0,
   };
 
