@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { SourceRange } from '@marky-mcmarkface/viewer-api';
 import type { PrDetail } from '../api.js';
+import { MentionTextarea } from './MentionTextarea.js';
 
 export interface RailPending {
   key: string;
@@ -200,12 +201,12 @@ function DraftCard({ card, top, innerRef }: { card: RailDraft; top: number; inne
         </p>
       )}
 
-      <textarea
+      <MentionTextarea
         ref={inputRef}
         rows={3}
         placeholder={card.commentable ? `Comment on ${where}…` : 'Comment on this file…'}
         value={card.body}
-        onChange={(e) => card.onChange(e.target.value)}
+        onValueChange={card.onChange}
         onKeyDown={(e) => {
           if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) card.onSubmit();
           if (e.key === 'Escape') card.onCancel();
@@ -390,11 +391,11 @@ function ThreadCard({
               }
             }}
           >
-            <textarea
+            <MentionTextarea
               rows={2}
               placeholder="Reply…"
               value={reply}
-              onChange={(e) => setReply(e.target.value)}
+              onValueChange={setReply}
             />
             <div className="card-actions">
               <button className="btn tiny" disabled={busy || !reply.trim()}>

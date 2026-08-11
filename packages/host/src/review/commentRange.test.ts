@@ -41,6 +41,28 @@ describe('commentRange', () => {
     });
   });
 
+  it('highlights the preceding prose when GitHub attached the comment to a blank line', () => {
+    const exact = 'jumps over the dog.';
+    expect(commentRange(source, { line: 5, body: 'Comment about the paragraph above' })).toEqual({
+      side: 'RIGHT',
+      start: source.indexOf(exact),
+      end: source.indexOf(exact) + exact.length,
+    });
+  });
+
+  it('uses following prose when the file starts with blank lines', () => {
+    const withLeadingBlanks = '\n\nFirst paragraph';
+    expect(commentRange(withLeadingBlanks, { line: 1, body: 'Comment' })).toEqual({
+      side: 'RIGHT',
+      start: withLeadingBlanks.indexOf('First paragraph'),
+      end: withLeadingBlanks.length,
+    });
+  });
+
+  it('returns no range when the source contains no visible text', () => {
+    expect(commentRange('\n\n', { line: 2, body: 'Comment' })).toBeNull();
+  });
+
   it('keeps the side supplied by GitHub', () => {
     expect(commentRange(source, { line: 6, body: 'Comment', side: 'LEFT' })?.side).toBe('LEFT');
   });

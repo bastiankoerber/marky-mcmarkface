@@ -630,6 +630,58 @@ input, textarea {
   mix-blend-mode: multiply;
 }
 .doc-pane { position: relative; }
+
+/* Document-local find. It lives on the paper and sticks to the reading viewport, so the same
+   control is available from the button and Command+F even halfway through a long document. */
+.document-search-tools {
+  position: sticky;
+  top: var(--sp-3);
+  z-index: 4;
+  display: flex;
+  justify-content: flex-end;
+  height: 0;
+  overflow: visible;
+}
+.document-search-open { transform: translateY(calc(var(--sp-3) * -1)); }
+.document-search-open kbd {
+  margin-left: var(--sp-1);
+  color: var(--ink-500);
+  font: 10px/1 var(--font-ui);
+}
+.document-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  width: min(430px, 100%);
+  padding: var(--sp-1);
+  transform: translateY(calc(var(--sp-3) * -1));
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--paper);
+}
+.document-search input { min-width: 100px; padding-block: 4px; background: var(--desk-sunk); }
+.document-search-count {
+  min-width: 68px;
+  color: var(--ink-500);
+  font-size: var(--ui-xs);
+  text-align: center;
+  white-space: nowrap;
+}
+.document-search-step,
+.document-search-close {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  flex: none;
+}
+
+::highlight(marky-document-search) { background: var(--accent-subtle); }
+::highlight(marky-document-search-current) {
+  color: var(--ink-900);
+  background: var(--accent);
+}
+.document-viewer ::selection { color: var(--ink-900); background: var(--accent); }
+
 /* The margin is desk, not paper — marginalia sit beside the page. */
 .rail-pane { position: relative; padding-left: var(--sp-3); }
 
@@ -832,6 +884,47 @@ del[data-marky-mcmarkface-del] {
 .card textarea { margin-top: 4px; }
 .card-actions { display: flex; gap: 6px; margin-top: 4px; }
 .comment { border-top: 1px solid var(--line); padding-top: 5px; margin-top: 5px; }
+
+.mention-composer { position: relative; }
+.mention-menu {
+  position: absolute;
+  z-index: 3;
+  right: 0;
+  bottom: calc(100% - 3px);
+  left: 0;
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--raised);
+  box-shadow: 0 8px 24px -14px oklch(0 0 0 / 0.35);
+}
+.mention-option {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 7px;
+  border: 0;
+  border-radius: var(--r-xs);
+  color: var(--ink-900);
+  background: var(--accent-subtle);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.mention-option > span:last-child { display: flex; min-width: 0; flex-direction: column; }
+.mention-option small { color: var(--ink-500); font-size: var(--ui-xs); }
+.mention-avatar {
+  display: grid;
+  width: 25px;
+  height: 25px;
+  flex: none;
+  place-items: center;
+  border-radius: var(--r-full);
+  color: var(--paper);
+  background: var(--ink-900);
+  font: 700 16px/1 var(--font-mono);
+}
 
 /* composer / footer -------------------------------------------------------- */
 

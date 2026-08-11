@@ -18,11 +18,13 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@marky-mcmarkface/server": "workspace:*",
+    "@types/jsdom": "^21.1.7",
     "@types/picomatch": "^3.0.1",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
     "@vitejs/plugin-react": "^4.3.4",
-    "vite": "^6.0.5",
-    "@marky-mcmarkface/server": "workspace:*"
+    "jsdom": "^25.0.1",
+    "vite": "^6.0.5"
   }
 }
