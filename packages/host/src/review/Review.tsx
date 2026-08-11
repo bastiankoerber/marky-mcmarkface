@@ -6,6 +6,7 @@ import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
 import { CommentRail, type RailPending, type RailThread } from './CommentRail.jsx';
 import { commentRange } from './commentRange.js';
+import { findDocumentText } from './documentSearch.js';
 import { loadDrafts, saveDrafts, type LocalComment } from './draftStore.js';
 import { resolveReviewImageUrl } from './imageUrl.js';
 import { resolveRepositoryLink } from './repositoryLink.js';
@@ -53,6 +54,10 @@ export function Review({
   // With both hidden the document becomes pure marginalia — just the page.
   const [showTree, setShowTree] = useState(true);
   const [showRail, setShowRail] = useState(true);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState(-1);
+  const [searchCount, setSearchCount] = useState(0);
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [draftBody, setDraftBody] = useState('');
@@ -67,9 +72,37 @@ export function Review({
   // (with an empty buffer) erases exactly what we are about to restore.
   const restored = useRef(false);
   const navigationSeq = useRef(0);
+  const documentRootRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchMatchesRef = useRef<Range[]>([]);
+  const searchIndexRef = useRef(-1);
 
   const anchoringRef = useRef<AnchoringImpl | null>(null);
   const registry = useMemo(() => createRegistry(), []);
+
+  const openSearch = useCallback(() => {
+    setSearchOpen(true);
+    requestAnimationFrame(() => {
+      searchInputRef.current?.focus();
+      searchInputRef.current?.select();
+    });
+  }, []);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    searchInputRef.current?.blur();
+  }, []);
+
+  const stepSearch = useCallback((direction: 1 | -1) => {
+    const ranges = searchMatchesRef.current;
+    if (!ranges.length) return;
+    const next = (searchIndexRef.current + direction + ranges.length) % ranges.length;
+    searchIndexRef.current = next;
+    setSearchIndex(next);
+    const doc = documentRootRef.current?.ownerDocument;
+    if (doc) paintSearchResults(doc, ranges, next);
+    scrollSearchResultIntoView(ranges[next]!, documentRootRef.current);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -112,6 +145,21 @@ export function Review({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        openSearch();
+        return;
+      }
+      if (searchOpen && e.key === 'Escape') {
+        e.preventDefault();
+        closeSearch();
+        return;
+      }
+      if (searchOpen && e.key === 'Enter' && e.target === searchInputRef.current) {
+        e.preventDefault();
+        stepSearch(e.shiftKey ? -1 : 1);
+        return;
+      }
       // Never steal the key while someone is writing a comment.
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return;
@@ -121,7 +169,35 @@ export function Review({
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  }, [closeSearch, openSearch, searchOpen, stepSearch]);
+
+  useEffect(() => {
+    const root = documentRootRef.current;
+    if (!searchOpen || !root) {
+      searchMatchesRef.current = [];
+      setSearchCount(0);
+      setSearchIndex(-1);
+      searchIndexRef.current = -1;
+      clearSearchResults(document);
+      return;
+    }
+
+    const refresh = () => {
+      const ranges = findDocumentText(root, searchQuery);
+      searchMatchesRef.current = ranges;
+      setSearchCount(ranges.length);
+      const first = ranges.length ? 0 : -1;
+      setSearchIndex(first);
+      searchIndexRef.current = first;
+      paintSearchResults(root.ownerDocument, ranges, first);
+      if (first >= 0) scrollSearchResultIntoView(ranges[first]!, root);
+    };
+
+    refresh();
+    return () => {
+      clearSearchResults(root.ownerDocument);
+    };
+  }, [activePath, mode, railTick, searchOpen, searchQuery]);
 
   const openPath = useCallback(
     (path: string, updateRoute = true) => {
@@ -495,26 +571,84 @@ export function Review({
         */}
         <div className="reading-area" data-marky-mcmarkface-scroll="">
           <main className="doc-pane">
-            {referenceLoading === activePath ? (
-              <Loading variant="inline" line={`Opening ${activePath} from the latest default branch…`} />
-            ) : !file ? (
-              <p className="muted">Select a file.</p>
-            ) : file.skipped ? (
-              <p className="muted">{file.skipped}</p>
-            ) : Active ? (
-              <Suspense fallback={<Loading variant="inline" line="Preparing the viewer…" />}>
-                <Active
-                  key={`${file.path}:${mode}`}
-                  file={{ path: file.path, base: file.base, head: file.head, hunks: file.patch.hunks }}
-                  annotations={[]}
-                  host={host}
-                  registerAnchoring={registerAnchoring}
-                  mode={mode === 'final' ? 'final' : 'rich'}
-                />
-              </Suspense>
-            ) : (
-              <p className="muted">No viewer claims this file.</p>
+            {file && !file.skipped && Active && (
+              <div className="document-search-tools">
+                {searchOpen ? (
+                  <div className="document-search" role="search">
+                    <input
+                      ref={searchInputRef}
+                      aria-label="Search this document"
+                      placeholder="Search this document"
+                      value={searchQuery}
+                      onChange={(event) => setSearchQuery(event.target.value)}
+                    />
+                    <span className="document-search-count" aria-live="polite">
+                      {!searchQuery ? 'Type to search' : searchCount ? `${searchIndex + 1} of ${searchCount}` : 'No results'}
+                    </span>
+                    <button
+                      className="btn tiny document-search-step"
+                      type="button"
+                      aria-label="Previous result"
+                      title="Previous result (Shift+Enter)"
+                      disabled={!searchCount}
+                      onClick={() => stepSearch(-1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="btn tiny document-search-step"
+                      type="button"
+                      aria-label="Next result"
+                      title="Next result (Enter)"
+                      disabled={!searchCount}
+                      onClick={() => stepSearch(1)}
+                    >
+                      ↓
+                    </button>
+                    <button
+                      className="btn tiny document-search-close"
+                      type="button"
+                      aria-label="Close search"
+                      title="Close search (Escape)"
+                      onClick={closeSearch}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    className="btn small document-search-open"
+                    type="button"
+                    title="Search this document (Command+F)"
+                    onClick={openSearch}
+                  >
+                    Search <kbd>⌘F</kbd>
+                  </button>
+                )}
+              </div>
             )}
+            <div className="document-viewer" ref={documentRootRef}>
+              {referenceLoading === activePath ? (
+                <Loading variant="inline" line={`Opening ${activePath} from the latest default branch…`} />
+              ) : !file ? (
+                <p className="muted">Select a file.</p>
+              ) : file.skipped ? (
+                <p className="muted">{file.skipped}</p>
+              ) : Active ? (
+                <Suspense fallback={<Loading variant="inline" line="Preparing the viewer…" />}>
+                  <Active
+                    key={`${file.path}:${mode}`}
+                    file={{ path: file.path, base: file.base, head: file.head, hunks: file.patch.hunks }}
+                    annotations={[]}
+                    host={host}
+                    registerAnchoring={registerAnchoring}
+                    mode={mode === 'final' ? 'final' : 'rich'}
+                  />
+                </Suspense>
+              ) : (
+                <p className="muted">No viewer claims this file.</p>
+              )}
+            </div>
           </main>
 
           <aside className="rail-pane">
@@ -618,4 +752,55 @@ function lineOffset(text: string, line: number): number {
     offset = next + 1;
   }
   return offset;
+}
+
+const SEARCH_HIGHLIGHT = 'marky-document-search';
+const CURRENT_SEARCH_HIGHLIGHT = 'marky-document-search-current';
+const fallbackSearchSelections = new WeakSet<Document>();
+
+function paintSearchResults(doc: Document, ranges: Range[], current: number): void {
+  const view = doc.defaultView;
+  if (!view) return;
+  const registry = view.CSS.highlights;
+  if (typeof view.Highlight !== 'undefined' && registry) {
+    registry.delete(SEARCH_HIGHLIGHT);
+    registry.delete(CURRENT_SEARCH_HIGHLIGHT);
+    if (!ranges.length) return;
+    registry.set(SEARCH_HIGHLIGHT, new view.Highlight(...ranges));
+    if (current >= 0 && ranges[current]) {
+      registry.set(CURRENT_SEARCH_HIGHLIGHT, new view.Highlight(ranges[current]));
+    }
+    return;
+  }
+
+  // Older embedded Chromium builds do not expose the CSS Custom Highlight API. The active
+  // browser selection still gives an honest, visible current result while count/navigation work
+  // exactly the same; current desktop releases take the richer all-results path above.
+  const selection = doc.getSelection();
+  selection?.removeAllRanges();
+  if (current >= 0 && ranges[current]) selection?.addRange(ranges[current].cloneRange());
+  fallbackSearchSelections.add(doc);
+}
+
+function clearSearchResults(doc: Document): void {
+  const registry = doc.defaultView?.CSS.highlights;
+  registry?.delete(SEARCH_HIGHLIGHT);
+  registry?.delete(CURRENT_SEARCH_HIGHLIGHT);
+  if (fallbackSearchSelections.has(doc)) {
+    doc.getSelection()?.removeAllRanges();
+    fallbackSearchSelections.delete(doc);
+  }
+}
+
+function scrollSearchResultIntoView(range: Range, root: HTMLElement | null): void {
+  if (!root) return;
+  const scroller = root.closest<HTMLElement>('[data-marky-mcmarkface-scroll]');
+  if (!scroller) {
+    range.startContainer.parentElement?.scrollIntoView({ block: 'center' });
+    return;
+  }
+  const rect = range.getBoundingClientRect();
+  const box = scroller.getBoundingClientRect();
+  const target = scroller.scrollTop + rect.top - box.top - box.height / 2 + rect.height / 2;
+  scroller.scrollTo({ top: Math.max(0, target), behavior: 'auto' });
 }
