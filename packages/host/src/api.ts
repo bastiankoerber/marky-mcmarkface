@@ -5,6 +5,12 @@ import type { Prefs } from '@marky-mcmarkface/server/src/prefs.js';
 
 export type { DashboardData, PrDetail, PendingComment, ReviewEvent, Prefs };
 
+export interface RepositoryFile {
+  path: string;
+  content: string;
+  ref: string;
+}
+
 /**
  * Every request carries this launch's `X-Marky-McMarkface` key.
  *
@@ -101,6 +107,10 @@ export const api = {
   savePrefs: (patch: Partial<Prefs>) => post<Prefs>('/api/prefs', patch),
 
   pr: (owner: string, repo: string, number: number) => call<PrDetail>(`/api/pr/${owner}/${repo}/${number}`),
+  repositoryFile: (owner: string, repo: string, number: number, path: string) =>
+    call<RepositoryFile>(
+      `/api/pr/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${number}/file?${new URLSearchParams({ path })}`,
+    ),
   submitReview: (
     owner: string,
     repo: string,

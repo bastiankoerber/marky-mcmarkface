@@ -132,6 +132,11 @@ export interface ViewerHost {
    * Optional so existing third-party viewers and hosts remain source-compatible.
    */
   resolveImageUrl?: (source: string, documentPath: string) => string | null;
+  /**
+   * Offer a rendered link to the host. Returning true means the host accepted navigation and
+   * the viewer must prevent the browser's default action.
+   */
+  openLink?(href: string, documentPath: string): boolean;
   theme: 'light' | 'dark';
 }
 

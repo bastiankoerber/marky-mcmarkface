@@ -73,6 +73,11 @@ which hurt readability behind prose. Toggle to *Final* for the clean read, or *S
 raw hunks. `[` and `]` collapse the file tree and the margin; with both hidden it is just the
 page.
 
+**Follow the document, including beyond the diff.** Repository-relative links open inside the
+review and update the URL, so a specific file can be shared or reopened directly. If the linked
+file is not changed by the pull request, Marky McMarkface shows the latest copy from the
+repository's default branch and labels it as a read-only reference.
+
 **Comment on prose, not on lines.** Select any passage and write a note. Marky McMarkface works out which
 source lines you meant and posts a normal GitHub review comment there. Existing threads appear
 in the margin beside the text they refer to, with replies and resolve.

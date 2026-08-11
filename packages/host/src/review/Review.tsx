@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { offsetToLine, quoteFor, type AnchoringImpl, type SourceRange, type ViewerHost } from '@marky-mcmarkface/viewer-api';
-import { api, type PrDetail, type ReviewEvent } from '../api.js';
+import { api, type PrDetail, type RepositoryFile, type ReviewEvent } from '../api.js';
 import { createRegistry } from '../viewers/index.js';
 import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
@@ -8,6 +8,7 @@ import { CommentRail, type RailPending, type RailThread } from './CommentRail.js
 import { commentRange } from './commentRange.js';
 import { loadDrafts, saveDrafts, type LocalComment } from './draftStore.js';
 import { resolveReviewImageUrl } from './imageUrl.js';
+import { resolveRepositoryLink } from './repositoryLink.js';
 
 type Mode = 'rich' | 'final' | 'source';
 
@@ -26,19 +27,26 @@ export function Review({
   owner,
   repo,
   number,
+  initialPath,
   theme,
   onBack,
+  onPathChange,
 }: {
   owner: string;
   repo: string;
   number: number;
+  initialPath: string | null;
   /** Resolved, never 'system' — a viewer has to know which way to draw. */
   theme: 'light' | 'dark';
   onBack: () => void;
+  onPathChange: (path: string) => void;
 }) {
   const [pr, setPr] = useState<PrDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
+  const [referenceFile, setReferenceFile] = useState<RepositoryFile | null>(null);
+  const [referenceLoading, setReferenceLoading] = useState<string | null>(null);
+  const [navigationError, setNavigationError] = useState<{ path: string; message: string } | null>(null);
   const [mode, setMode] = useState<Mode>('rich');
   const [viewed, setViewed] = useState<Set<string>>(new Set());
   // `[` and `]` collapse the tree and the rail, the way Readwise Reader does it.
@@ -58,6 +66,7 @@ export function Review({
   // Nothing may be written back until the stored buffer has been read, or the first save
   // (with an empty buffer) erases exactly what we are about to restore.
   const restored = useRef(false);
+  const navigationSeq = useRef(0);
 
   const anchoringRef = useRef<AnchoringImpl | null>(null);
   const registry = useMemo(() => createRegistry(), []);
@@ -71,7 +80,6 @@ export function Review({
       .then((data) => {
         if (!live) return;
         setPr(data);
-        setActivePath(data.files.find((f) => /\.mdx?$/i.test(f.path))?.path ?? data.files[0]?.path ?? null);
 
         // Unsent comments outlive a reload. They only exist in this tab until you submit, and
         // losing an afternoon of margin notes to a refresh is not a reasonable price for that.
@@ -115,7 +123,75 @@ export function Review({
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const file = pr?.files.find((f) => f.path === activePath) ?? null;
+  const openPath = useCallback(
+    (path: string, updateRoute = true) => {
+      if (!pr) return false;
+      const request = ++navigationSeq.current;
+      setActivePath(path);
+      setDraft(null);
+      setNavigationError(null);
+
+      const changed = pr.files.find((candidate) => candidate.path === path);
+      if (changed) {
+        setReferenceFile(null);
+        setReferenceLoading(null);
+      } else {
+        setReferenceFile(null);
+        setReferenceLoading(path);
+        void api
+          .repositoryFile(owner, repo, number, path)
+          .then((loaded) => {
+            if (navigationSeq.current !== request) return;
+            setReferenceFile(loaded);
+            setReferenceLoading(null);
+          })
+          .catch((error) => {
+            if (navigationSeq.current !== request) return;
+            setReferenceLoading(null);
+            setNavigationError({ path, message: (error as Error).message });
+          });
+      }
+
+      if (updateRoute) onPathChange(path);
+      return true;
+    },
+    [number, onPathChange, owner, pr, repo],
+  );
+
+  useEffect(() => {
+    if (!pr) return;
+    const requested =
+      initialPath ?? pr.files.find((candidate) => /\.mdx?$/i.test(candidate.path))?.path ?? pr.files[0]?.path;
+    if (!requested) return;
+    const alreadyOpening =
+      activePath === requested &&
+      (pr.files.some((candidate) => candidate.path === requested) ||
+        referenceFile?.path === requested ||
+        referenceLoading === requested ||
+        navigationError?.path === requested);
+    if (!alreadyOpening) openPath(requested, false);
+  }, [activePath, initialPath, navigationError?.path, openPath, pr, referenceFile?.path, referenceLoading]);
+
+  const changedFile = pr?.files.find((candidate) => candidate.path === activePath) ?? null;
+  const referenceDisplay = useMemo<PrDetail['files'][number] | null>(
+    () =>
+      referenceFile?.path === activePath
+        ? {
+            path: referenceFile.path,
+            previousPath: null,
+            status: 'unchanged',
+            additions: 0,
+            deletions: 0,
+            patch: { hunks: [], rightLines: [], leftLines: [] },
+            base: referenceFile.content,
+            head: referenceFile.content,
+            skipped: null,
+          }
+        : null,
+    [activePath, referenceFile],
+  );
+  const file = changedFile ?? referenceDisplay;
+  const readOnlyReference = Boolean(referenceDisplay);
   const headSource = file?.head ?? '';
 
   const registerAnchoring = useCallback((impl: AnchoringImpl | null) => {
@@ -139,7 +215,7 @@ export function Review({
   const host = useMemo<ViewerHost>(
     () => ({
       onSelect: (range) => {
-        if (!range || !headSource) {
+        if (readOnlyReference || !range || !headSource) {
           setDraft(null);
           return;
         }
@@ -154,17 +230,21 @@ export function Review({
         });
         setDraftBody('');
       },
-      commentableRanges: () => file?.patch.rightLines ?? [],
+      commentableRanges: () => (readOnlyReference ? [] : (file?.patch.rightLines ?? [])),
       requestComment: () => {},
       resolveImageUrl: (source, documentPath) =>
         resolveReviewImageUrl(source, documentPath, pr?.imageBaseUrl),
+      openLink: (href, documentPath) => {
+        const target = resolveRepositoryLink(href, documentPath);
+        return target ? openPath(target.path) : false;
+      },
       theme,
     }),
-    [headSource, commentableAt, file, pr?.imageBaseUrl, theme],
+    [headSource, commentableAt, file, openPath, pr?.imageBaseUrl, readOnlyReference, theme],
   );
 
   const addComment = () => {
-    if (!draft || !file || !draftBody.trim()) return;
+    if (!draft || !file || readOnlyReference || !draftBody.trim()) return;
     setPending((prev) => [
       ...prev,
       {
@@ -365,6 +445,15 @@ export function Review({
           {w}
         </div>
       ))}
+      {referenceDisplay && referenceFile && (
+        <div className="banner note">
+          <span>
+            Showing <strong>{referenceFile.path}</strong> from the latest <strong>{referenceFile.ref}</strong>{' '}
+            because it is not changed in this pull request. This reference view is read-only.
+          </span>
+        </div>
+      )}
+      {navigationError && <div className="banner warn">{navigationError.message}</div>}
       {draftNotice && (
         <div className="banner note">
           {draftNotice}
@@ -386,7 +475,7 @@ export function Review({
             active={activePath}
             counts={commentCounts}
             viewed={viewed}
-            onSelect={setActivePath}
+            onSelect={(path) => openPath(path)}
             onToggleViewed={(path) =>
               setViewed((prev) => {
                 const next = new Set(prev);
@@ -406,7 +495,9 @@ export function Review({
         */}
         <div className="reading-area" data-marky-mcmarkface-scroll="">
           <main className="doc-pane">
-            {!file ? (
+            {referenceLoading === activePath ? (
+              <Loading variant="inline" line={`Opening ${activePath} from the latest default branch…`} />
+            ) : !file ? (
               <p className="muted">Select a file.</p>
             ) : file.skipped ? (
               <p className="muted">{file.skipped}</p>

@@ -160,6 +160,31 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     };
   }, [host]);
 
+  // The viewer knows that an anchor was clicked; only the host knows whether its destination is
+  // another file in this repository. Modified clicks remain ordinary browser actions so opening
+  // an external link in a new tab keeps working exactly as expected.
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || !host.openLink) return;
+    const onClick = (event: MouseEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) return;
+      const target = event.target;
+      const anchor = target instanceof Element ? target.closest<HTMLAnchorElement>('a[href]') : null;
+      const href = anchor?.getAttribute('href');
+      if (!anchor || !href || !root.contains(anchor)) return;
+      if (host.openLink?.(href, file.path)) event.preventDefault();
+    };
+    root.addEventListener('click', onClick);
+    return () => root.removeEventListener('click', onClick);
+  }, [file.path, host]);
+
   return (
     <div
       ref={containerRef}
