@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { DashboardData, Prefs } from '../api.js';
 import { api } from '../api.js';
 import { draftCounts, draftKey } from '../review/draftStore.js';
+import { parsePullRequestReference } from './pullRequestLink.js';
 
 type Data = DashboardData & { prefs: Prefs; staleError?: string | null };
 
@@ -46,7 +47,10 @@ export function Dashboard({
 
   return (
     <div className="dash">
-      <p className="dash-lede">{summarise(review.length, review.filter((pr) => pr.markdown.count > 0).length)}</p>
+      <div className="dash-intro">
+        <p className="dash-lede">{summarise(review.length, review.filter((pr) => pr.markdown.count > 0).length)}</p>
+        <QuickOpen onOpen={onOpen} />
+      </div>
 
       {!data.prefs.pinCardDismissed && data.repos.length > 0 && (
         <PinCard data={data} onPrefs={onPrefs} pinned={pinned} onToggle={togglePin} />
@@ -133,6 +137,71 @@ export function Dashboard({
         Dashboard cost {data.rateLimit.cost} point of {data.rateLimit.limit}; {data.rateLimit.remaining} left this hour.
       </p>
     </div>
+  );
+}
+
+function QuickOpen({ onOpen }: { onOpen: (owner: string, repo: string, number: number) => void }) {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  const open = (candidate: string): boolean => {
+    const reference = parsePullRequestReference(candidate);
+    if (!reference) {
+      setError('Paste a github.com pull request link or enter owner/repo#123.');
+      return false;
+    }
+    setError(null);
+    onOpen(reference.owner, reference.repo, reference.number);
+    return true;
+  };
+
+  return (
+    <form
+      className="quick-open"
+      onSubmit={(event) => {
+        event.preventDefault();
+        open(value);
+      }}
+    >
+      <div className="quick-open-copy">
+        <label htmlFor="quick-open-pr">Open a pull request</label>
+        <span>Paste a GitHub PR link—or the whole Slack message.</span>
+      </div>
+      <div className="quick-open-action">
+        <input
+          id="quick-open-pr"
+          value={value}
+          onChange={(event) => {
+            setValue(event.target.value);
+            if (error) setError(null);
+          }}
+          onPaste={(event) => {
+            const pasted = event.clipboardData.getData('text');
+            if (!parsePullRequestReference(pasted)) return;
+            event.preventDefault();
+            setValue(pasted);
+            open(pasted);
+          }}
+          placeholder="https://github.com/owner/repo/pull/123"
+          aria-describedby={error ? 'quick-open-error' : 'quick-open-hint'}
+          aria-invalid={Boolean(error)}
+          autoComplete="off"
+          spellCheck={false}
+        />
+        <button className="btn primary" type="submit">
+          Open
+        </button>
+      </div>
+      {error ? (
+        <span id="quick-open-error" className="quick-open-feedback error" role="alert">
+          {error}
+        </span>
+      ) : (
+        <span id="quick-open-hint" className="quick-open-feedback muted">
+          Pasted links open immediately. You can also press Enter.
+        </span>
+      )}
+    </form>
   );
 }
 

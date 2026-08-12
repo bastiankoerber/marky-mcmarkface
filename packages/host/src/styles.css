@@ -450,6 +450,28 @@ input, textarea {
 /* `width: 100%` is load-bearing: auto inline margins on a flex item disable cross-axis stretch,
    so without it this collapses to fit-content and silently loses a column. */
 .dash { padding: 16px; width: 100%; max-width: 1600px; margin-inline: auto; flex: 1; overflow-y: auto; min-height: 0; }
+.dash-intro {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(420px, 0.9fr);
+  align-items: start;
+  gap: 28px;
+  margin: 4px 0 24px;
+}
+.quick-open {
+  display: grid;
+  grid-template-columns: minmax(140px, 0.55fr) minmax(240px, 1fr);
+  column-gap: 16px;
+  row-gap: 5px;
+  padding-left: 20px;
+  border-left: 2px solid var(--border-default);
+}
+.quick-open-copy { display: flex; flex-direction: column; gap: 2px; }
+.quick-open-copy label { font-weight: 650; }
+.quick-open-copy span { color: var(--ink-500); font-size: var(--ui-sm); }
+.quick-open-action { display: flex; gap: 8px; align-items: center; }
+.quick-open-action input { min-width: 0; background: var(--desk-sunk); }
+.quick-open-action .btn { flex: none; }
+.quick-open-feedback { grid-column: 2; font-size: var(--ui-xs); }
 .dash-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chip {
@@ -955,7 +977,7 @@ del[data-marky-mcmarkface-del] {
 }
 
 .dash-lede {
-  margin: 4px 0 20px;
+  margin: 0;
   font-size: 17px;
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -987,6 +1009,13 @@ del[data-marky-mcmarkface-del] {
 @media (max-width: 1200px) {
   :root { --tree-w: 220px; --rail-w: 260px; }
   .doc-pane { padding: 20px 22px; }
+  .dash-intro { grid-template-columns: 1fr; gap: 16px; }
+  .quick-open { padding-left: 0; border-left: none; }
+}
+
+@media (max-width: 640px) {
+  .quick-open { grid-template-columns: 1fr; }
+  .quick-open-feedback { grid-column: 1; }
 }
 
 /* Repo chips: pinning and filtering are separate hit targets. */
