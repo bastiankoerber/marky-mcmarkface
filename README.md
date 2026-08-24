@@ -78,9 +78,11 @@ review and update the URL, so a specific file can be shared or reopened directly
 file is not changed by the pull request, Marky McMarkface shows the latest copy from the
 repository's default branch and labels it as a read-only reference.
 
-**Comment on prose, not on lines.** Select any passage and write a note. Marky McMarkface works out which
-source lines you meant and posts a normal GitHub review comment there. Existing threads appear
-in the margin beside the text they refer to, with replies and resolve.
+**Comment on prose, not on lines.** Select any passage and write a note, or switch to **Suggest edit**
+to propose replacement Markdown directly. Suggestions are seeded with the complete selected
+source lines so GitHub can apply them safely. Marky McMarkface works out which source lines you
+meant and posts a normal GitHub review comment there. Existing threads appear in the margin
+beside the text they refer to, with replies and resolve.
 
 **Shows the document's images.** Relative and reference-style Markdown images are resolved from
 the exact pull-request commit, falling back to the exact base commit when the branch is behind,
@@ -92,6 +94,12 @@ review model works — the author gets a single notification rather than a drip 
 you read. Drafts survive a reload and are listed on the dashboard, so an unsubmitted review is
 never mistaken for feedback already given. If new commits land while you were writing, the
 drafts are dropped rather than re-pinned to lines that have since moved, and Marky McMarkface says so.
+
+**Review before the pull request exists.** Open `owner/repo@branch` from the dashboard to compare
+a branch with the repository's default branch. Comments and suggested edits remain local while
+you read. After you confirm the title and description, **Create pull request** creates it and
+posts the buffered feedback as one GitHub review. If the branch moved, creation stops and asks
+you to reopen it rather than attaching comments to the wrong lines.
 
 **Light, dark, or whatever your Mac is doing.** Three-state switch in the top bar. Dark is warm
 rather than blue-black, and the paper grain is light-mode only.
@@ -200,8 +208,8 @@ npx tsc --noEmit -p tsconfig.json
 
 Early, and honest about it. Reviewing works end to end against live pull requests.
 
-Not yet done: no bundled client ID (see Connecting); suggested edits have a model but no UI;
-viewed-state lives in component state and is lost on reload; `capabilities.safe`, `postProcess`
+Not yet done: no bundled client ID (see Connecting); viewed-state lives in component state and is
+lost on reload; `capabilities.safe`, `postProcess`
 and `remarkPlugins` are declared in the viewer API but not yet acted on by the host; and
 npm-installable third-party viewers are still build-time only.
 

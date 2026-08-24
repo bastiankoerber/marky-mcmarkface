@@ -11,6 +11,17 @@ describe('review routes', () => {
     expect(parseHash('#/pr/acme/docs/7')).toEqual({ kind: 'review', owner: 'acme', repo: 'docs', number: 7 });
   });
 
+  it('round-trips branch names and document paths independently', () => {
+    const view = {
+      kind: 'branch' as const,
+      owner: 'acme',
+      repo: 'docs',
+      branch: 'docs/rewrite',
+      file: 'guides/start here.md',
+    };
+    expect(parseHash(hashForView(view))).toEqual(view);
+  });
+
   it('rejects malformed routes', () => {
     expect(parseHash('#/pr/acme/docs/nope')).toEqual({ kind: 'dashboard' });
     expect(parseHash('#/pr/%E0%A4%A/docs/1')).toEqual({ kind: 'dashboard' });

@@ -72,7 +72,7 @@ export interface ViewerCapabilities {
   diff: 'native' | 'side-by-side' | 'new-only';
   /** Advisory. */
   anchorGranularity: 'char' | 'line' | 'block';
-  /** Advisory; no editing surface exists yet. */
+  /** Advisory; the host's suggestion editor does not consult this flag yet. */
   editable?: boolean;
 }
 

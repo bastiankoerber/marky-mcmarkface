@@ -20,11 +20,11 @@ export async function fetchRepositoryFile(
   owner: string,
   repo: string,
   path: string,
+  requestedRef?: string,
 ): Promise<RepositoryFile | null> {
   if (!isRepositoryFilePath(path)) return null;
 
-  const repository = await gh.rest<{ default_branch: string }>(`/repos/${owner}/${repo}`, { cache: true });
-  const ref = repository.default_branch;
+  const ref = requestedRef ?? (await gh.rest<{ default_branch: string }>(`/repos/${owner}/${repo}`, { cache: true })).default_branch;
   const encoded = path.split('/').map(encodeURIComponent).join('/');
   try {
     // The branch can move, so conditional caching revalidates its ETag instead of assuming the

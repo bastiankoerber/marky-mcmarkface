@@ -132,23 +132,16 @@ async function blobAt(gh: GitHubClient, owner: string, repo: string, path: strin
   }
 }
 
-export async function fetchPr(gh: GitHubClient, owner: string, repo: string, number: number): Promise<PrDetail> {
-  const warnings: string[] = [];
-
-  const [pr, rawFiles, viewer] = await Promise.all([
-    gh.rest<any>(`/repos/${owner}/${repo}/pulls/${number}`),
-    gh.rest<any[]>(`/repos/${owner}/${repo}/pulls/${number}/files?per_page=100`),
-    gh.rest<{ login: string }>('/user', { cache: true }),
-  ]);
-
-  const headSha: string = pr.head.sha;
-  const baseSha: string = pr.base.sha;
-
-  if (rawFiles.length === 100) {
-    warnings.push('This PR has 100 or more changed files; only the first 100 are shown.');
-  }
-
-  const files: PrFileDetail[] = await Promise.all(
+/** Materialise the before/after text for a GitHub pull or compare file listing. */
+export async function materializeChangedFiles(
+  gh: GitHubClient,
+  owner: string,
+  repo: string,
+  rawFiles: any[],
+  baseSha: string,
+  headSha: string,
+): Promise<PrFileDetail[]> {
+  return Promise.all(
     rawFiles.map(async (f): Promise<PrFileDetail> => {
       const patch = parsePatch(f.patch);
       const renderable = TEXT_RE.test(f.filename);
@@ -187,6 +180,25 @@ export async function fetchPr(gh: GitHubClient, owner: string, repo: string, num
       };
     }),
   );
+}
+
+export async function fetchPr(gh: GitHubClient, owner: string, repo: string, number: number): Promise<PrDetail> {
+  const warnings: string[] = [];
+
+  const [pr, rawFiles, viewer] = await Promise.all([
+    gh.rest<any>(`/repos/${owner}/${repo}/pulls/${number}`),
+    gh.rest<any[]>(`/repos/${owner}/${repo}/pulls/${number}/files?per_page=100`),
+    gh.rest<{ login: string }>('/user', { cache: true }),
+  ]);
+
+  const headSha: string = pr.head.sha;
+  const baseSha: string = pr.base.sha;
+
+  if (rawFiles.length === 100) {
+    warnings.push('This PR has 100 or more changed files; only the first 100 are shown.');
+  }
+
+  const files = await materializeChangedFiles(gh, owner, repo, rawFiles, baseSha, headSha);
 
   let threads: ReviewThread[] = [];
   try {

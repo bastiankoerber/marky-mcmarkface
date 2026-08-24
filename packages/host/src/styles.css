@@ -904,6 +904,20 @@ del[data-marky-mcmarkface-del] {
 .card blockquote { margin: 0 0 6px; padding-left: 8px; border-left: 2px solid var(--line); color: var(--ink-500); font-size: 12px; max-height: 3.2em; overflow: hidden; }
 .card p { margin: 0 0 6px; }
 .card textarea { margin-top: 4px; }
+.draft-kind { display: flex; gap: 4px; margin: 8px 0 5px; }
+.suggestion-note { margin: 4px 0 2px !important; }
+.suggestion-editor,
+.suggestion-preview {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--r-xs);
+  color: var(--ink-900);
+  background: var(--paper);
+  font: 12px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+}
+.suggestion-editor { resize: vertical; }
+.suggestion-preview { margin: 6px 0 2px; padding: 7px 8px; overflow-wrap: anywhere; }
 .card-actions { display: flex; gap: 6px; margin-top: 4px; }
 .comment { border-top: 1px solid var(--line); padding-top: 5px; margin-top: 5px; }
 

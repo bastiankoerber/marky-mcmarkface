@@ -1,9 +1,10 @@
 import type { DashboardData } from '@marky-mcmarkface/server/src/github/dashboard.js';
 import type { PrDetail } from '@marky-mcmarkface/server/src/github/pr.js';
+import type { BranchDetail, CreatedBranchPullRequest } from '@marky-mcmarkface/server/src/github/branch.js';
 import type { PendingComment, ReviewEvent } from '@marky-mcmarkface/server/src/github/review.js';
 import type { Prefs } from '@marky-mcmarkface/server/src/prefs.js';
 
-export type { DashboardData, PrDetail, PendingComment, ReviewEvent, Prefs };
+export type { DashboardData, PrDetail, BranchDetail, PendingComment, ReviewEvent, Prefs };
 
 export interface RepositoryFile {
   path: string;
@@ -107,9 +108,32 @@ export const api = {
   savePrefs: (patch: Partial<Prefs>) => post<Prefs>('/api/prefs', patch),
 
   pr: (owner: string, repo: string, number: number) => call<PrDetail>(`/api/pr/${owner}/${repo}/${number}`),
+  branch: (owner: string, repo: string, branch: string) =>
+    call<BranchDetail>(
+      `/api/branch/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}?${new URLSearchParams({ ref: branch })}`,
+    ),
   repositoryFile: (owner: string, repo: string, number: number, path: string) =>
     call<RepositoryFile>(
       `/api/pr/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${number}/file?${new URLSearchParams({ path })}`,
+    ),
+  branchFile: (owner: string, repo: string, branch: string, path: string) =>
+    call<RepositoryFile>(
+      `/api/branch/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/file?${new URLSearchParams({ ref: branch, path })}`,
+    ),
+  createPullRequest: (
+    owner: string,
+    repo: string,
+    input: {
+      branch: string;
+      expectedHeadSha: string;
+      title: string;
+      body: string;
+      comments: PendingComment[];
+    },
+  ) =>
+    post<CreatedBranchPullRequest>(
+      `/api/branch/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pull-request`,
+      input,
     ),
   submitReview: (
     owner: string,

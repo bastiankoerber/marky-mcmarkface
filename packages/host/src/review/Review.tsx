@@ -7,9 +7,10 @@ import { FileTree } from './FileTree.jsx';
 import { CommentRail, type RailPending, type RailThread } from './CommentRail.jsx';
 import { commentRange } from './commentRange.js';
 import { findDocumentText } from './documentSearch.js';
-import { loadDrafts, saveDrafts, type LocalComment } from './draftStore.js';
+import { clearDrafts, loadDrafts, saveDrafts, type LocalComment, type ReviewId } from './draftStore.js';
 import { resolveReviewImageUrl } from './imageUrl.js';
 import { resolveRepositoryLink } from './repositoryLink.js';
+import { suggestionForLines } from './suggestion.js';
 
 type Mode = 'rich' | 'final' | 'source';
 
@@ -19,6 +20,7 @@ interface Draft {
   line: number;
   quote: string;
   commentable: boolean;
+  suggestion: string;
 }
 
 let commentSeq = 0;
@@ -28,20 +30,26 @@ export function Review({
   owner,
   repo,
   number,
+  branch,
   initialPath,
   theme,
   onBack,
   onPathChange,
+  onPullRequestCreated,
 }: {
   owner: string;
   repo: string;
-  number: number;
+  number: number | null;
+  branch: string | null;
   initialPath: string | null;
   /** Resolved, never 'system' — a viewer has to know which way to draw. */
   theme: 'light' | 'dark';
   onBack: () => void;
   onPathChange: (path: string) => void;
+  onPullRequestCreated: (number: number) => void;
 }) {
+  const branchReview = number === null && branch !== null;
+  const reviewId: ReviewId = number ?? `branch:${branch!}`;
   const [pr, setPr] = useState<PrDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
@@ -61,11 +69,15 @@ export function Review({
 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [draftBody, setDraftBody] = useState('');
+  const [draftKind, setDraftKind] = useState<'comment' | 'suggestion'>('comment');
+  const [draftSuggestion, setDraftSuggestion] = useState('');
   const [pending, setPending] = useState<LocalComment[]>([]);
   const [summary, setSummary] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState<string | null>(null);
+  const [createdNumber, setCreatedNumber] = useState<number | null>(null);
+  const [pullRequestTitle, setPullRequestTitle] = useState('');
   const [railTick, setRailTick] = useState(0);
   const [draftNotice, setDraftNotice] = useState<string | null>(null);
   // Nothing may be written back until the stored buffer has been read, or the first save
@@ -106,17 +118,19 @@ export function Review({
 
   useEffect(() => {
     let live = true;
+    restored.current = false;
     setPr(null);
     setError(null);
-    api
-      .pr(owner, repo, number)
+    const request = branchReview ? api.branch(owner, repo, branch!) : api.pr(owner, repo, number!);
+    request
       .then((data) => {
         if (!live) return;
         setPr(data);
 
         // Unsent comments outlive a reload. They only exist in this tab until you submit, and
         // losing an afternoon of margin notes to a refresh is not a reasonable price for that.
-        const { buffer, stale } = loadDrafts(owner, repo, number, data.headSha);
+        if (branchReview) setPullRequestTitle(defaultPullRequestTitle(branch!));
+        const { buffer, stale } = loadDrafts(owner, repo, reviewId, data.headSha);
         if (buffer) {
           // Re-id on restore: the module counter restarts at c1 on every load, so reusing the
           // stored ids would collide with the next comment written in this session.
@@ -136,12 +150,12 @@ export function Review({
     return () => {
       live = false;
     };
-  }, [owner, repo, number]);
+  }, [owner, repo, number, branch, branchReview, reviewId]);
 
   useEffect(() => {
     if (!restored.current || !pr) return;
-    saveDrafts(owner, repo, number, { headSha: pr.headSha, summary, comments: pending });
-  }, [pending, summary, pr, owner, repo, number]);
+    saveDrafts(owner, repo, reviewId, { headSha: pr.headSha, summary, comments: pending });
+  }, [pending, summary, pr, owner, repo, reviewId]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -214,8 +228,10 @@ export function Review({
       } else {
         setReferenceFile(null);
         setReferenceLoading(path);
-        void api
-          .repositoryFile(owner, repo, number, path)
+        const requestFile = branchReview
+          ? api.branchFile(owner, repo, branch!, path)
+          : api.repositoryFile(owner, repo, number!, path);
+        void requestFile
           .then((loaded) => {
             if (navigationSeq.current !== request) return;
             setReferenceFile(loaded);
@@ -231,7 +247,7 @@ export function Review({
       if (updateRoute) onPathChange(path);
       return true;
     },
-    [number, onPathChange, owner, pr, repo],
+    [branch, branchReview, number, onPathChange, owner, pr, repo],
   );
 
   useEffect(() => {
@@ -303,8 +319,11 @@ export function Review({
           line,
           quote: quoteFor(headSource, range).exact.slice(0, 300),
           commentable: commentableAt(startLine, line),
+          suggestion: suggestionForLines(headSource, startLine, line),
         });
         setDraftBody('');
+        setDraftKind('comment');
+        setDraftSuggestion(suggestionForLines(headSource, startLine, line));
       },
       commentableRanges: () => (readOnlyReference ? [] : (file?.patch.rightLines ?? [])),
       requestComment: () => {},
@@ -320,7 +339,9 @@ export function Review({
   );
 
   const addComment = () => {
-    if (!draft || !file || readOnlyReference || !draftBody.trim()) return;
+    if (!draft || !file || readOnlyReference) return;
+    const isSuggestion = draft.commentable && draftKind === 'suggestion';
+    if (isSuggestion ? draftSuggestion === draft.suggestion : !draftBody.trim()) return;
     setPending((prev) => [
       ...prev,
       {
@@ -333,11 +354,14 @@ export function Review({
         // line. The quote in the body is what tells the author which passage was meant.
         ...(draft.commentable ? {} : { subjectType: 'file' as const }),
         body: `> ${draft.quote.replace(/\n/g, '\n> ')}\n\n${draftBody.trim()}`,
+        ...(isSuggestion ? { suggestion: draftSuggestion } : {}),
         range: draft.range,
       },
     ]);
     setDraft(null);
     setDraftBody('');
+    setDraftKind('comment');
+    setDraftSuggestion('');
     window.getSelection()?.removeAllRanges();
   };
 
@@ -346,7 +370,23 @@ export function Review({
     setSubmitting(true);
     setSubmitError(null);
     try {
-      const result = await api.submitReview(owner, repo, number, {
+      if (branchReview) {
+        const result = await api.createPullRequest(owner, repo, {
+          branch: branch!,
+          expectedHeadSha: pr.headSha,
+          title: pullRequestTitle,
+          body: summary,
+          comments: pending.map(({ id: _id, range: _range, ...comment }) => comment),
+        });
+        clearDrafts(owner, repo, reviewId);
+        setPending([]);
+        setSummary('');
+        setSubmitted(result.url);
+        setCreatedNumber(result.number);
+        if (result.reviewError) setSubmitError(result.reviewError);
+        return;
+      }
+      const result = await api.submitReview(owner, repo, number!, {
         event,
         body: summary,
         commitId: pr.headSha,
@@ -363,7 +403,7 @@ export function Review({
           `The review was submitted, but ${result.fileCommentErrors.length} file comment(s) failed: ${result.fileCommentErrors.join('; ')}`,
         );
       }
-      setPr(await api.pr(owner, repo, number));
+      setPr(await api.pr(owner, repo, number!));
     } catch (err) {
       setSubmitError((err as Error).message);
     } finally {
@@ -412,6 +452,7 @@ export function Review({
           startLine: c.startLine ?? c.line,
           line: c.line,
           body: c.body.replace(/^> .*\n\n/s, ''),
+          ...(c.suggestion === undefined ? {} : { suggestion: c.suggestion }),
           quote: c.body.startsWith('>') ? (c.body.split('\n\n')[0] ?? '').replace(/^> /gm, '') : '',
           range: c.range ?? commentRange(headSource, c),
           top: topFor(c.startLine ?? c.line),
@@ -465,7 +506,7 @@ export function Review({
   if (!pr) {
     return (
       <Loading
-        line={`Opening ${owner}/${repo} #${number}…`}
+        line={branchReview ? `Opening ${owner}/${repo}@${branch}…` : `Opening ${owner}/${repo} #${number}…`}
         slowLine="Fetching every changed file and its previous version."
       />
     );
@@ -501,7 +542,7 @@ export function Review({
         <div className="review-title">
           <strong>{pr.title}</strong>
           <span className="muted small">
-            {pr.owner}/{pr.repo} #{pr.number} · {pr.headRef} → {pr.baseRef}
+            {pr.owner}/{pr.repo} {branchReview ? 'branch' : `#${pr.number}`} · {pr.headRef} → {pr.baseRef}
           </span>
         </div>
         <div className="modes">
@@ -525,7 +566,7 @@ export function Review({
         <div className="banner note">
           <span>
             Showing <strong>{referenceFile.path}</strong> from the latest <strong>{referenceFile.ref}</strong>{' '}
-            because it is not changed in this pull request. This reference view is read-only.
+            because it is not changed in this {branchReview ? 'branch comparison' : 'pull request'}. This reference view is read-only.
           </span>
         </div>
       )}
@@ -540,7 +581,13 @@ export function Review({
       )}
       {submitted && (
         <div className="banner ok">
-          Review submitted. <a href={submitted} target="_blank" rel="noreferrer">View on GitHub</a>
+          {branchReview ? 'Pull request created.' : 'Review submitted.'}{' '}
+          <a href={submitted} target="_blank" rel="noreferrer">View on GitHub</a>
+          {createdNumber !== null && (
+            <button className="btn link small" onClick={() => onPullRequestCreated(createdNumber)}>
+              Open in Marky McMarkface
+            </button>
+          )}
         </div>
       )}
 
@@ -628,7 +675,7 @@ export function Review({
               </div>
             )}
             <div className="document-viewer" ref={documentRootRef}>
-              {referenceLoading === activePath ? (
+              {referenceLoading !== null && referenceLoading === activePath ? (
                 <Loading variant="inline" line={`Opening ${activePath} from the latest default branch…`} />
               ) : !file ? (
                 <p className="muted">Select a file.</p>
@@ -662,8 +709,13 @@ export function Review({
                       line: draft.line,
                       commentable: draft.commentable,
                       body: draftBody,
+                      kind: draftKind,
+                      suggestion: draftSuggestion,
+                      original: draft.suggestion,
                       top: topForLine(draft.startLine),
                       onChange: setDraftBody,
+                      onKindChange: setDraftKind,
+                      onSuggestionChange: setDraftSuggestion,
                       onSubmit: addComment,
                       onCancel: () => setDraft(null),
                     }
@@ -673,10 +725,12 @@ export function Review({
               threads={railThreads}
               onRemove={(key) => setPending((prev) => prev.filter((c) => c.id !== key))}
               onReply={async (commentId, body) => {
+                if (number === null) return;
                 await api.reply(owner, repo, number, commentId, body);
                 setPr(await api.pr(owner, repo, number));
               }}
               onResolve={async (threadId, isResolved) => {
+                if (number === null) return;
                 await api.resolveThread(threadId, isResolved);
                 setPr(await api.pr(owner, repo, number));
               }}
@@ -697,8 +751,16 @@ export function Review({
       </div>
 
       <footer className="review-foot">
+        {branchReview && (
+          <input
+            placeholder="Pull request title"
+            aria-label="Pull request title"
+            value={pullRequestTitle}
+            onChange={(e) => setPullRequestTitle(e.target.value)}
+          />
+        )}
         <input
-          placeholder="Review summary (optional)"
+          placeholder={branchReview ? 'Pull request description (optional)' : 'Review summary (optional)'}
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
         />
@@ -715,32 +777,51 @@ export function Review({
             <strong>
               {pending.length} comment{pending.length === 1 ? '' : 's'} · not sent yet
             </strong>
-            <span className="muted tiny">Kept on this Mac. Goes to GitHub as one review when you submit.</span>
+            <span className="muted tiny">
+              Kept on this Mac. Goes to GitHub as one review when you {branchReview ? 'create the pull request' : 'submit'}.
+            </span>
           </div>
         )}
-        <button className="btn" disabled={submitting || (!summary.trim() && pending.length === 0)} onClick={() => void submit('COMMENT')}>
-          Comment
-        </button>
-        <button
-          className="btn"
-          disabled={submitting || pr.viewerIsAuthor}
-          title={pr.viewerIsAuthor ? 'GitHub does not allow approving your own pull request' : ''}
-          onClick={() => void submit('APPROVE')}
-        >
-          Approve
-        </button>
-        <button
-          className="btn danger"
-          disabled={submitting || pr.viewerIsAuthor}
-          title={pr.viewerIsAuthor ? 'GitHub does not allow requesting changes on your own pull request' : ''}
-          onClick={() => void submit('REQUEST_CHANGES')}
-        >
-          Request changes
-        </button>
+        {branchReview ? (
+          <button
+            className="btn primary"
+            disabled={submitting || createdNumber !== null || !pullRequestTitle.trim()}
+            onClick={() => void submit('COMMENT')}
+          >
+            {submitting ? 'Creating…' : createdNumber !== null ? 'Pull request created' : 'Create pull request'}
+          </button>
+        ) : (
+          <>
+            <button className="btn" disabled={submitting || (!summary.trim() && pending.length === 0)} onClick={() => void submit('COMMENT')}>
+              Comment
+            </button>
+            <button
+              className="btn"
+              disabled={submitting || pr.viewerIsAuthor}
+              title={pr.viewerIsAuthor ? 'GitHub does not allow approving your own pull request' : ''}
+              onClick={() => void submit('APPROVE')}
+            >
+              Approve
+            </button>
+            <button
+              className="btn danger"
+              disabled={submitting || pr.viewerIsAuthor}
+              title={pr.viewerIsAuthor ? 'GitHub does not allow requesting changes on your own pull request' : ''}
+              onClick={() => void submit('REQUEST_CHANGES')}
+            >
+              Request changes
+            </button>
+          </>
+        )}
         {submitError && <span className="error small">{submitError}</span>}
       </footer>
     </div>
   );
+}
+
+function defaultPullRequestTitle(branch: string): string {
+  const words = branch.split('/').pop()!.replace(/[-_]+/g, ' ').trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : branch;
 }
 
 /** Offset of the first character of a 1-based line. */

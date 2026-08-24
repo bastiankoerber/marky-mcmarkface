@@ -16,7 +16,9 @@ export interface DraftBuffer {
 }
 
 const KEY = 'marky-mcmarkface.drafts.v1';
-const prKey = (owner: string, repo: string, number: number) => `${owner}/${repo}#${number}`;
+export type ReviewId = number | `branch:${string}`;
+const prKey = (owner: string, repo: string, review: ReviewId) =>
+  typeof review === 'number' ? `${owner}/${repo}#${review}` : `${owner}/${repo}@${review.slice('branch:'.length)}`;
 
 type Store = Record<string, DraftBuffer>;
 
@@ -52,7 +54,7 @@ function write(store: Store): void {
 export function loadDrafts(
   owner: string,
   repo: string,
-  number: number,
+  number: ReviewId,
   headSha: string,
 ): { buffer: DraftBuffer | null; stale: number } {
   const store = read();
@@ -71,7 +73,7 @@ export function loadDrafts(
 export function saveDrafts(
   owner: string,
   repo: string,
-  number: number,
+  number: ReviewId,
   buffer: DraftBuffer,
 ): void {
   const store = read();
@@ -104,6 +106,12 @@ export function clearAllDrafts(): void {
   } catch {
     // Nothing to do; the store was already unreachable.
   }
+}
+
+export function clearDrafts(owner: string, repo: string, review: ReviewId): void {
+  const store = read();
+  delete store[prKey(owner, repo, review)];
+  write(store);
 }
 
 export const draftKey = prKey;

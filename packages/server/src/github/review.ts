@@ -36,10 +36,14 @@ export interface SubmitReviewInput {
   commitId?: string;
 }
 
-function renderBody(c: PendingComment): string {
+export function renderCommentBody(c: PendingComment): string {
   if (c.suggestion === undefined) return c.body;
-  const fence = '```';
-  return `${c.body}\n\n${fence}suggestion\n${c.suggestion}\n${fence}`;
+  // Suggested Markdown can itself contain a fenced code block. A fence one backtick longer
+  // than any run in the replacement keeps that content inside GitHub's suggestion block.
+  const longestRun = Math.max(0, ...Array.from(c.suggestion.matchAll(/`+/g), (match) => match[0].length));
+  const fence = '`'.repeat(Math.max(3, longestRun + 1));
+  const block = `${fence}suggestion\n${c.suggestion}\n${fence}`;
+  return c.body.trim() ? `${c.body}\n\n${block}` : block;
 }
 
 function toApiComment(c: PendingComment) {
@@ -47,7 +51,7 @@ function toApiComment(c: PendingComment) {
     path: c.path,
     line: c.line,
     side: c.side,
-    body: renderBody(c),
+    body: renderCommentBody(c),
   };
   // GitHub rejects start_line when it equals line, so only send it for genuine multi-line spans.
   if (c.startLine !== undefined && c.startLine < c.line) {
@@ -98,7 +102,7 @@ export async function submitReview(
           try {
             await gh.write('POST', `/repos/${owner}/${repo}/pulls/${number}/comments`, {
               path: comment.path,
-              body: renderBody(comment),
+              body: renderCommentBody(comment),
               commit_id: input.commitId,
               subject_type: 'file',
             });
