@@ -108,9 +108,9 @@ export const api = {
   savePrefs: (patch: Partial<Prefs>) => post<Prefs>('/api/prefs', patch),
 
   pr: (owner: string, repo: string, number: number) => call<PrDetail>(`/api/pr/${owner}/${repo}/${number}`),
-  branch: (owner: string, repo: string, branch: string) =>
+  branch: (owner: string, repo: string, branch: string, path?: string) =>
     call<BranchDetail>(
-      `/api/branch/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}?${new URLSearchParams({ ref: branch })}`,
+      `/api/branch/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}?${new URLSearchParams({ ref: branch, ...(path ? { path } : {}) })}`,
     ),
   repositoryFile: (owner: string, repo: string, number: number, path: string) =>
     call<RepositoryFile>(
@@ -129,6 +129,7 @@ export const api = {
       title: string;
       body: string;
       comments: PendingComment[];
+      documentPath?: string;
     },
   ) =>
     post<CreatedBranchPullRequest>(

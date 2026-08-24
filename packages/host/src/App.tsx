@@ -133,17 +133,24 @@ export function App() {
 
       {error && <div className="banner warn">{error}</div>}
 
-      {view.kind === 'review' || view.kind === 'branch' ? (
+      {view.kind === 'review' || view.kind === 'branch' || view.kind === 'document' ? (
         // Keyed by pull request so switching PRs remounts rather than reusing state. Without
         // this, a hash change keeps the component alive and the pending-comment buffer follows
         // you to the next pull request — where submitting would post to the wrong PR.
         <Review
-          key={view.kind === 'review' ? `${view.owner}/${view.repo}/${view.number}` : `${view.owner}/${view.repo}@${view.branch}`}
+          key={
+            view.kind === 'review'
+              ? `${view.owner}/${view.repo}/${view.number}`
+              : view.kind === 'document'
+                ? `${view.owner}/${view.repo}@${view.branch}:${view.file}`
+                : `${view.owner}/${view.repo}@${view.branch}`
+          }
           owner={view.owner}
           repo={view.repo}
           number={view.kind === 'review' ? view.number : null}
-          branch={view.kind === 'branch' ? view.branch : null}
+          branch={view.kind === 'branch' || view.kind === 'document' ? view.branch : null}
           initialPath={view.file ?? null}
+          documentPath={view.kind === 'document' ? view.file : null}
           theme={theme}
           onBack={() => navigate({ kind: 'dashboard' })}
           onPathChange={(file) => navigate({ ...view, file })}
@@ -153,7 +160,9 @@ export function App() {
         <Dashboard
           data={data}
           onOpen={(owner, repo, number) => navigate({ kind: 'review', owner, repo, number })}
-          onOpenBranch={(owner, repo, branch) => navigate({ kind: 'branch', owner, repo, branch })}
+          onOpenBranch={(owner, repo, branch, file) =>
+            navigate(file ? { kind: 'document', owner, repo, branch, file } : { kind: 'branch', owner, repo, branch })
+          }
           onPrefs={(prefs) => setData((prev) => (prev ? { ...prev, prefs } : prev))}
           onRefresh={() => void api.refresh().then(loadDashboard)}
         />

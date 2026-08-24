@@ -22,6 +22,17 @@ describe('review routes', () => {
     expect(parseHash(hashForView(view))).toEqual(view);
   });
 
+  it('round-trips a document-edit route independently from a branch file selection', () => {
+    const view = {
+      kind: 'document' as const,
+      owner: 'acme',
+      repo: 'docs',
+      branch: 'main',
+      file: 'guides/start here.md',
+    };
+    expect(parseHash(hashForView(view))).toEqual(view);
+  });
+
   it('rejects malformed routes', () => {
     expect(parseHash('#/pr/acme/docs/nope')).toEqual({ kind: 'dashboard' });
     expect(parseHash('#/pr/%E0%A4%A/docs/1')).toEqual({ kind: 'dashboard' });

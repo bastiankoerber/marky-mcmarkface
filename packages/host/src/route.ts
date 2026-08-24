@@ -1,10 +1,17 @@
 export type View =
   | { kind: 'dashboard' }
   | { kind: 'review'; owner: string; repo: string; number: number; file?: string }
-  | { kind: 'branch'; owner: string; repo: string; branch: string; file?: string };
+  | { kind: 'branch'; owner: string; repo: string; branch: string; file?: string }
+  | { kind: 'document'; owner: string; repo: string; branch: string; file: string };
 
 export function hashForView(view: View): string {
   if (view.kind === 'dashboard') return '';
+  if (view.kind === 'document') {
+    return `#/document/${encodeURIComponent(view.owner)}/${encodeURIComponent(view.repo)}?${new URLSearchParams({
+      ref: view.branch,
+      file: view.file,
+    })}`;
+  }
   if (view.kind === 'branch') {
     return `#/branch/${encodeURIComponent(view.owner)}/${encodeURIComponent(view.repo)}?${new URLSearchParams({
       ref: view.branch,
@@ -21,10 +28,22 @@ export function parseHash(hash: string): View {
   const pathname = question === -1 ? hash : hash.slice(0, question);
   const match = /^#\/pr\/([^/]+)\/([^/]+)\/(\d+)$/.exec(pathname);
   const branchMatch = /^#\/branch\/([^/]+)\/([^/]+)$/.exec(pathname);
-  if (!match && !branchMatch) return { kind: 'dashboard' };
+  const documentMatch = /^#\/document\/([^/]+)\/([^/]+)$/.exec(pathname);
+  if (!match && !branchMatch && !documentMatch) return { kind: 'dashboard' };
 
   try {
     const file = question === -1 ? null : new URLSearchParams(hash.slice(question + 1)).get('file');
+    if (documentMatch) {
+      const branch = question === -1 ? null : new URLSearchParams(hash.slice(question + 1)).get('ref');
+      if (!branch || !file) return { kind: 'dashboard' };
+      return {
+        kind: 'document',
+        owner: decodeURIComponent(documentMatch[1]!),
+        repo: decodeURIComponent(documentMatch[2]!),
+        branch,
+        file,
+      };
+    }
     if (branchMatch) {
       const branch = question === -1 ? null : new URLSearchParams(hash.slice(question + 1)).get('ref');
       if (!branch) return { kind: 'dashboard' };

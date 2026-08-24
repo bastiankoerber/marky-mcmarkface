@@ -1,6 +1,6 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { offsetToLine, quoteFor, type AnchoringImpl, type SourceRange, type ViewerHost } from '@marky-mcmarkface/viewer-api';
-import { api, type PrDetail, type RepositoryFile, type ReviewEvent } from '../api.js';
+import { api, type BranchDetail, type PrDetail, type RepositoryFile, type ReviewEvent } from '../api.js';
 import { createRegistry } from '../viewers/index.js';
 import { Loading } from '../Loading.jsx';
 import { FileTree } from './FileTree.jsx';
@@ -32,6 +32,7 @@ export function Review({
   number,
   branch,
   initialPath,
+  documentPath,
   theme,
   onBack,
   onPathChange,
@@ -42,6 +43,7 @@ export function Review({
   number: number | null;
   branch: string | null;
   initialPath: string | null;
+  documentPath: string | null;
   /** Resolved, never 'system' — a viewer has to know which way to draw. */
   theme: 'light' | 'dark';
   onBack: () => void;
@@ -49,8 +51,8 @@ export function Review({
   onPullRequestCreated: (number: number) => void;
 }) {
   const branchReview = number === null && branch !== null;
-  const reviewId: ReviewId = number ?? `branch:${branch!}`;
-  const [pr, setPr] = useState<PrDetail | null>(null);
+  const reviewId: ReviewId = number ?? `branch:${branch!}${documentPath ? `:${documentPath}` : ''}`;
+  const [pr, setPr] = useState<PrDetail | BranchDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
   const [referenceFile, setReferenceFile] = useState<RepositoryFile | null>(null);
@@ -121,7 +123,7 @@ export function Review({
     restored.current = false;
     setPr(null);
     setError(null);
-    const request = branchReview ? api.branch(owner, repo, branch!) : api.pr(owner, repo, number!);
+    const request = branchReview ? api.branch(owner, repo, branch!, documentPath ?? undefined) : api.pr(owner, repo, number!);
     request
       .then((data) => {
         if (!live) return;
@@ -129,7 +131,13 @@ export function Review({
 
         // Unsent comments outlive a reload. They only exist in this tab until you submit, and
         // losing an afternoon of margin notes to a refresh is not a reasonable price for that.
-        if (branchReview) setPullRequestTitle(defaultPullRequestTitle(branch!));
+        if (branchReview) {
+          setPullRequestTitle(
+            data.state === 'document' && documentPath
+              ? documentPullRequestTitle(documentPath)
+              : defaultPullRequestTitle(branch!),
+          );
+        }
         const { buffer, stale } = loadDrafts(owner, repo, reviewId, data.headSha);
         if (buffer) {
           // Re-id on restore: the module counter restarts at c1 on every load, so reusing the
@@ -150,7 +158,7 @@ export function Review({
     return () => {
       live = false;
     };
-  }, [owner, repo, number, branch, branchReview, reviewId]);
+  }, [owner, repo, number, branch, branchReview, documentPath, reviewId]);
 
   useEffect(() => {
     if (!restored.current || !pr) return;
@@ -284,6 +292,7 @@ export function Review({
   );
   const file = changedFile ?? referenceDisplay;
   const readOnlyReference = Boolean(referenceDisplay);
+  const documentReview = branchReview && pr?.state === 'document';
   const headSource = file?.head ?? '';
 
   const registerAnchoring = useCallback((impl: AnchoringImpl | null) => {
@@ -352,7 +361,7 @@ export function Review({
         ...(draft.startLine < draft.line ? { startLine: draft.startLine } : {}),
         // An unchanged passage still gets recorded, just attached to the file rather than a
         // line. The quote in the body is what tells the author which passage was meant.
-        ...(draft.commentable ? {} : { subjectType: 'file' as const }),
+        ...(draft.commentable && !(documentReview && !isSuggestion) ? {} : { subjectType: 'file' as const }),
         body: `> ${draft.quote.replace(/\n/g, '\n> ')}\n\n${draftBody.trim()}`,
         ...(isSuggestion ? { suggestion: draftSuggestion } : {}),
         range: draft.range,
@@ -377,6 +386,7 @@ export function Review({
           title: pullRequestTitle,
           body: summary,
           comments: pending.map(({ id: _id, range: _range, ...comment }) => comment),
+          ...(documentReview && file ? { documentPath: file.path } : {}),
         });
         clearDrafts(owner, repo, reviewId);
         setPending([]);
@@ -542,7 +552,8 @@ export function Review({
         <div className="review-title">
           <strong>{pr.title}</strong>
           <span className="muted small">
-            {pr.owner}/{pr.repo} {branchReview ? 'branch' : `#${pr.number}`} · {pr.headRef} → {pr.baseRef}
+            {pr.owner}/{pr.repo} {documentReview ? 'document' : branchReview ? 'branch' : `#${pr.number}`} ·{' '}
+            {documentReview ? `${pr.baseRef} → new pull request` : `${pr.headRef} → ${pr.baseRef}`}
           </span>
         </div>
         <div className="modes">
@@ -562,6 +573,11 @@ export function Review({
           {w}
         </div>
       ))}
+      {documentReview && (
+        <div className="banner note">
+          Suggested edits will be committed to a new branch. Nothing is written to GitHub until you create the pull request.
+        </div>
+      )}
       {referenceDisplay && referenceFile && (
         <div className="banner note">
           <span>
@@ -785,7 +801,17 @@ export function Review({
         {branchReview ? (
           <button
             className="btn primary"
-            disabled={submitting || createdNumber !== null || !pullRequestTitle.trim()}
+            disabled={
+              submitting ||
+              createdNumber !== null ||
+              !pullRequestTitle.trim() ||
+              (documentReview && !pending.some((comment) => comment.suggestion !== undefined))
+            }
+            title={
+              documentReview && !pending.some((comment) => comment.suggestion !== undefined)
+                ? 'Add at least one suggested edit to create a pull request'
+                : ''
+            }
             onClick={() => void submit('COMMENT')}
           >
             {submitting ? 'Creating…' : createdNumber !== null ? 'Pull request created' : 'Create pull request'}
@@ -822,6 +848,12 @@ export function Review({
 function defaultPullRequestTitle(branch: string): string {
   const words = branch.split('/').pop()!.replace(/[-_]+/g, ' ').trim();
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : branch;
+}
+
+function documentPullRequestTitle(path: string): string {
+  const stem = (path.split('/').pop() ?? path).replace(/\.[^.]+$/, '');
+  const words = stem.replace(/[-_]+/g, ' ').trim();
+  return words ? `Update ${words}` : 'Update document';
 }
 
 /** Offset of the first character of a 1-based line. */

@@ -527,8 +527,10 @@ app.get('/api/pr/:owner/:repo/:number/file', async (c) => {
 app.get('/api/branch/:owner/:repo', async (c) => {
   const { owner, repo } = c.req.param();
   const branch = c.req.query('ref') ?? '';
+  const path = c.req.query('path') || undefined;
   if (!isBranchName(branch)) throw new HttpError(400, 'That branch name is not supported.');
-  const detail = await fetchBranch(requireClient(), owner, repo, branch);
+  if (path && !isRepositoryFilePath(path)) throw new HttpError(400, 'That repository file path is not supported.');
+  const detail = await fetchBranch(requireClient(), owner, repo, branch, path);
   const capability = issueAssetScope({ owner, repo, sha: detail.headSha, baseSha: detail.baseSha });
   return c.json({ ...detail, imageBaseUrl: `/_marky/image/${capability}` });
 });
@@ -551,6 +553,9 @@ app.post('/api/branch/:owner/:repo/pull-request', async (c) => {
   if (!input.title?.trim()) throw new HttpError(400, 'A pull request title is required.');
   if (!input.expectedHeadSha?.trim()) throw new HttpError(400, 'The reviewed branch commit is required.');
   if (!Array.isArray(input.comments)) throw new HttpError(400, 'Comments must be an array.');
+  if (input.documentPath && !isRepositoryFilePath(input.documentPath)) {
+    throw new HttpError(400, 'That repository file path is not supported.');
+  }
   const result = await createBranchPullRequest(requireClient(), owner, repo, input);
   void poller.refresh();
   return c.json(result);

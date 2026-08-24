@@ -84,15 +84,21 @@ export async function submitReview(
   const lineComments = input.comments.filter((c) => c.subjectType !== 'file');
   const fileComments = input.comments.filter((c) => c.subjectType === 'file');
 
+  let res: { id: number; html_url: string } | null = null;
   try {
-    const res = await gh.write<any>('POST', `/repos/${owner}/${repo}/pulls/${number}/reviews`, {
-      event: input.event,
-      body: input.body,
-      comments: lineComments.map(toApiComment),
-    });
+    // GitHub rejects an empty COMMENT review. A review containing only file-level comments does
+    // not need the batch endpoint at all; those comments are posted individually below.
+    if (lineComments.length > 0 || input.body.trim()) {
+      res = await gh.write<any>('POST', `/repos/${owner}/${repo}/pulls/${number}/reviews`, {
+        event: input.event,
+        body: input.body,
+        comments: lineComments.map(toApiComment),
+      });
+    }
 
     const fileCommentErrors: string[] = [];
     let fileCommentsPosted = 0;
+    let firstFileCommentUrl: string | null = null;
 
     if (fileComments.length > 0) {
       if (!input.commitId) {
@@ -100,12 +106,13 @@ export async function submitReview(
       } else {
         for (const comment of fileComments) {
           try {
-            await gh.write('POST', `/repos/${owner}/${repo}/pulls/${number}/comments`, {
+            const posted = await gh.write<{ html_url?: string }>('POST', `/repos/${owner}/${repo}/pulls/${number}/comments`, {
               path: comment.path,
               body: renderCommentBody(comment),
               commit_id: input.commitId,
               subject_type: 'file',
             });
+            firstFileCommentUrl ??= posted.html_url ?? null;
             fileCommentsPosted++;
           } catch (err) {
             // The review is already posted; say precisely which notes did not make it rather
@@ -116,7 +123,12 @@ export async function submitReview(
       }
     }
 
-    return { id: res.id, url: res.html_url, fileCommentsPosted, fileCommentErrors };
+    return {
+      id: res?.id ?? 0,
+      url: res?.html_url ?? firstFileCommentUrl ?? `https://github.com/${owner}/${repo}/pull/${number}`,
+      fileCommentsPosted,
+      fileCommentErrors,
+    };
   } catch (err) {
     const detail = (err as { body?: unknown }).body;
     // A 422 here almost always means a comment landed on a line outside the diff. The UI greys

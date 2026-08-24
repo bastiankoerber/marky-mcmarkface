@@ -16,7 +16,7 @@ export function Dashboard({
 }: {
   data: Data;
   onOpen: (owner: string, repo: string, number: number) => void;
-  onOpenBranch: (owner: string, repo: string, branch: string) => void;
+  onOpenBranch: (owner: string, repo: string, branch: string, file?: string) => void;
   onPrefs: (prefs: Prefs) => void;
   onRefresh: () => void;
 }) {
@@ -148,7 +148,7 @@ function QuickOpen({
   onOpenBranch,
 }: {
   onOpen: (owner: string, repo: string, number: number) => void;
-  onOpenBranch: (owner: string, repo: string, branch: string) => void;
+  onOpenBranch: (owner: string, repo: string, branch: string, file?: string) => void;
 }) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -163,10 +163,10 @@ function QuickOpen({
     const branch = parseBranchReference(candidate);
     if (branch) {
       setError(null);
-      onOpenBranch(branch.owner, branch.repo, branch.branch);
+      onOpenBranch(branch.owner, branch.repo, branch.branch, branch.file);
       return true;
     }
-    setError('Paste a GitHub pull request or branch link, or enter owner/repo#123 or owner/repo@branch.');
+    setError('Paste a GitHub pull request, branch, or document link—or enter owner/repo#123 or owner/repo@branch.');
     return false;
   };
 
@@ -179,8 +179,8 @@ function QuickOpen({
       }}
     >
       <div className="quick-open-copy">
-        <label htmlFor="quick-open-pr">Open a pull request or branch</label>
-        <span>Branch feedback stays on this Mac until you create the PR.</span>
+        <label htmlFor="quick-open-pr">Open a pull request, branch, or document</label>
+        <span>Document edits stay on this Mac until you create the PR.</span>
       </div>
       <div className="quick-open-action">
         <input
@@ -197,7 +197,7 @@ function QuickOpen({
             setValue(pasted);
             open(pasted);
           }}
-          placeholder="PR URL or owner/repo@branch"
+          placeholder="GitHub PR, branch, or document URL"
           aria-describedby={error ? 'quick-open-error' : 'quick-open-hint'}
           aria-invalid={Boolean(error)}
           autoComplete="off"
