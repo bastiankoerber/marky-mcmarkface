@@ -1,5 +1,10 @@
 import DOMPurify from 'dompurify';
-import type { Config, DOMPurify as DOMPurifyInstance, UponSanitizeAttributeHook } from 'dompurify';
+import type {
+  Config,
+  DOMPurify as DOMPurifyInstance,
+  UponSanitizeAttributeHook,
+  UponSanitizeElementHook,
+} from 'dompurify';
 
 const CONFIG: Config = {
   // ALLOW_DATA_ATTR defaults true, preserving the nonced position stamps used for anchoring.
@@ -58,11 +63,64 @@ const restrictResourceLoads: UponSanitizeAttributeHook = (node, event) => {
   }
 };
 
+function hasExternalCssLoad(value: string): boolean {
+  // SVG legitimately uses url(#local-marker) for arrows and filters. Remove those first; any
+  // remaining url(), @import, or legacy expression() can reach beyond the generated diagram.
+  const withoutLocalFragments = value.replace(/url\(\s*(["']?)#[^)"']+\1\s*\)/gi, '');
+  return /url\s*\(|@import|expression\s*\(/i.test(withoutLocalFragments);
+}
+
+const restrictMermaidPresentation: UponSanitizeAttributeHook = (node, event) => {
+  if (hasExternalCssLoad(event.attrValue)) event.keepAttr = false;
+  if (
+    (event.attrName.toLowerCase() === 'href' || event.attrName.toLowerCase() === 'xlink:href') &&
+    node.tagName.toLowerCase() === 'a'
+  ) {
+    event.keepAttr = isAllowedLinkUrl(event.attrValue);
+  }
+};
+
+function isAllowedLinkUrl(raw: string): boolean {
+  const value = raw.trim();
+  if (!value || value.startsWith('//') || value.startsWith('\\') || /[\u0000-\u001f\u007f]/.test(value)) return false;
+  if (!/^[a-z][a-z\d+.-]*:/i.test(value)) return true;
+  try {
+    return ['https:', 'http:', 'mailto:'].includes(new URL(value).protocol);
+  } catch {
+    return false;
+  }
+}
+
+const restrictMermaidStyles: UponSanitizeElementHook = (node, event) => {
+  if (event.tagName === 'style' && hasExternalCssLoad(node.textContent ?? '')) node.textContent = '';
+};
+
 export function sanitizeRenderedHtml(html: string, purifier: DOMPurifyInstance = DOMPurify): string {
   purifier.addHook('uponSanitizeAttribute', restrictResourceLoads);
   try {
     return purifier.sanitize(html, CONFIG);
   } finally {
     purifier.removeHook('uponSanitizeAttribute', restrictResourceLoads);
+  }
+}
+
+/**
+ * Mermaid produces SVG rather than authored HTML. Keep its presentation attributes, but run the
+ * result through an SVG-only profile and the same no-network boundary as Markdown images.
+ */
+export function sanitizeMermaidSvg(svg: string, purifier: DOMPurifyInstance = DOMPurify): string {
+  purifier.addHook('uponSanitizeAttribute', restrictResourceLoads);
+  purifier.addHook('uponSanitizeAttribute', restrictMermaidPresentation);
+  purifier.addHook('uponSanitizeElement', restrictMermaidStyles);
+  try {
+    return purifier.sanitize(svg, {
+      USE_PROFILES: { svg: true, svgFilters: true },
+      FORBID_TAGS: ['script', 'foreignObject', 'iframe', 'object', 'embed'],
+      FORBID_ATTR: ['srcdoc', 'formaction', 'ping'],
+    });
+  } finally {
+    purifier.removeHook('uponSanitizeAttribute', restrictResourceLoads);
+    purifier.removeHook('uponSanitizeAttribute', restrictMermaidPresentation);
+    purifier.removeHook('uponSanitizeElement', restrictMermaidStyles);
   }
 }

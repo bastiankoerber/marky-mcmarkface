@@ -763,6 +763,77 @@ input, textarea {
   line-height: 1.55;
 }
 .md-body pre code { background: none; padding: 0; }
+[data-marky-mcmarkface-mermaid] { margin: 0 0 1em; }
+[data-marky-mcmarkface-mermaid] > pre { margin: 0; }
+.md-mermaid-output {
+  position: relative;
+  padding: var(--sp-2) 0 0;
+  font-family: var(--font-ui);
+}
+.md-mermaid-controls {
+  position: sticky;
+  z-index: 1;
+  top: var(--sp-2);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 3px;
+  width: fit-content;
+  margin: 0 0 6px auto;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: color-mix(in oklab, var(--paper) 92%, transparent);
+  box-shadow: 0 2px 8px color-mix(in oklab, var(--ink-900) 8%, transparent);
+  backdrop-filter: blur(8px);
+}
+.md-mermaid-control {
+  min-width: 30px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--r-xs);
+  color: var(--ink-700);
+  background: transparent;
+  font: 600 var(--ui-xs)/1 var(--font-ui);
+  cursor: pointer;
+}
+.md-mermaid-control:hover,
+.md-mermaid-control[aria-pressed='true'] { color: var(--ink-900); background: var(--desk-sunk); }
+.md-mermaid-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.md-mermaid-scale {
+  min-width: 42px;
+  color: var(--ink-500);
+  text-align: center;
+  font: 500 11px/1 var(--font-ui);
+}
+.md-mermaid-viewport {
+  max-height: min(72vh, 760px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: var(--sp-3);
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: color-mix(in oklab, var(--paper) 96%, var(--desk));
+  scrollbar-gutter: stable both-edges;
+}
+.md-mermaid-viewport:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.md-mermaid-viewport a { cursor: pointer; }
+.md-mermaid-viewport a:focus-visible .label-container {
+  stroke: var(--accent) !important;
+  stroke-width: 3px !important;
+}
+.md-mermaid-viewport svg {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+}
+.md-mermaid-error {
+  margin-bottom: var(--sp-2);
+  color: var(--del);
+  font-family: var(--font-ui);
+  font-size: var(--ui-sm);
+}
 .md-body blockquote {
   border-left: 2px solid var(--border-strong);
   padding-left: var(--sp-4);

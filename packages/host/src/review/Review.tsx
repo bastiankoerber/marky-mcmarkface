@@ -261,7 +261,9 @@ export function Review({
   useEffect(() => {
     if (!pr) return;
     const requested =
-      initialPath ?? pr.files.find((candidate) => /\.mdx?$/i.test(candidate.path))?.path ?? pr.files[0]?.path;
+      initialPath ??
+      pr.files.find((candidate) => /\.(?:mdx?|mmd|mermaid)$/i.test(candidate.path))?.path ??
+      pr.files[0]?.path;
     if (!requested) return;
     const alreadyOpening =
       activePath === requested &&

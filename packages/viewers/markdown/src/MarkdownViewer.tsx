@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { AnchoringImpl, SourceRange, ViewerProps } from '@marky-mcmarkface/viewer-api';
-import { parseMarkdown, normaliseSource } from './parse.js';
+import { isStandaloneMermaidPath, parseMarkdown, parseStandaloneMermaid, normaliseSource } from './parse.js';
 import { renderToHtml } from './render.js';
 import { diffMarkdown } from './blockdiff.js';
 import { describeRange, anchorRange } from './anchoring.js';
 import { sanitizeRenderedHtml } from './sanitize.js';
+import { enhanceMermaidDiagrams } from './mermaid.js';
 
 /**
  * The built-in markdown viewer: a rendered rich diff you can select prose in.
@@ -36,7 +37,9 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
   const { html, nonce } = useMemo(() => {
     const token = Math.random().toString(36).slice(2, 10);
     const head = normaliseSource(file.head ?? '');
-    const headTree = parseMarkdown(head);
+    const standaloneMermaid = isStandaloneMermaidPath(file.path);
+    const parse = standaloneMermaid ? parseStandaloneMermaid : parseMarkdown;
+    const headTree = parse(head);
     const resolveImageUrl = host.resolveImageUrl
       ? (source: string) => host.resolveImageUrl!(source, file.path)
       : undefined;
@@ -52,7 +55,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     }
 
     const base = file.base === null ? null : normaliseSource(file.base);
-    const baseTree = base === null ? null : parseMarkdown(base);
+    const baseTree = base === null ? null : parse(base);
     const diff = diffMarkdown(base, baseTree, head, headTree);
     return {
       html: sanitizeRenderedHtml(
@@ -71,6 +74,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     const layoutListeners = new Set<() => void>();
     const observer = new ResizeObserver(() => layoutListeners.forEach((cb) => cb()));
     observer.observe(root);
+    const restoreMermaid = enhanceMermaidDiagrams(root, host.theme);
 
     // A blocked, missing, or unsupported image should not disappear as a tiny broken icon. The
     // replacement is created after sanitisation, so hostile Markdown cannot borrow its class or
@@ -123,12 +127,13 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
 
     registerAnchoring(impl);
     return () => {
+      restoreMermaid();
       observer.disconnect();
       for (const cleanup of imageCleanups) cleanup();
       layoutListeners.clear();
       registerAnchoring(null);
     };
-  }, [registerAnchoring, html]);
+  }, [registerAnchoring, html, host.theme]);
 
   // Report selections upward. Debounced through a frame so a drag reports once on release
   // rather than on every intermediate selectionchange.
@@ -176,7 +181,9 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
         event.altKey
       ) return;
       const target = event.target;
-      const anchor = target instanceof Element ? target.closest<HTMLAnchorElement>('a[href]') : null;
+      // Mermaid links are SVG <a> elements rather than HTMLAnchorElement instances, but they
+      // participate in the same repository-navigation boundary as authored Markdown links.
+      const anchor = target instanceof Element ? target.closest('a[href]') : null;
       const href = anchor?.getAttribute('href');
       if (!anchor || !href || !root.contains(anchor)) return;
       if (host.openLink?.(href, file.path)) event.preventDefault();
