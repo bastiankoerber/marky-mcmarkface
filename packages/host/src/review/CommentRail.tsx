@@ -9,6 +9,7 @@ export interface RailPending {
   startLine: number;
   line: number;
   body: string;
+  suggestion?: string;
   quote: string;
   range: SourceRange | null;
   top: number;
@@ -29,8 +30,13 @@ export interface RailDraft {
   line: number;
   commentable: boolean;
   body: string;
+  kind: 'comment' | 'suggestion';
+  suggestion: string;
+  original: string;
   top: number;
   onChange: (body: string) => void;
+  onKindChange: (kind: 'comment' | 'suggestion') => void;
+  onSuggestionChange: (suggestion: string) => void;
   onSubmit: () => void;
   onCancel: () => void;
 }
@@ -201,10 +207,57 @@ function DraftCard({ card, top, innerRef }: { card: RailDraft; top: number; inne
         </p>
       )}
 
+      {card.commentable && (
+        <div className="draft-kind" role="group" aria-label="Feedback type">
+          <button
+            type="button"
+            className={`btn tiny ${card.kind === 'comment' ? 'on' : ''}`}
+            aria-pressed={card.kind === 'comment'}
+            onClick={() => card.onKindChange('comment')}
+          >
+            Comment
+          </button>
+          <button
+            type="button"
+            className={`btn tiny ${card.kind === 'suggestion' ? 'on' : ''}`}
+            aria-pressed={card.kind === 'suggestion'}
+            onClick={() => card.onKindChange('suggestion')}
+          >
+            Suggest edit
+          </button>
+        </div>
+      )}
+
+      {card.kind === 'suggestion' && card.commentable && (
+        <>
+          <p className="muted tiny suggestion-note">
+            Edit the source below. GitHub suggestions replace the complete selected line{card.startLine === card.line ? '' : 's'}.
+          </p>
+          <textarea
+            className="suggestion-editor"
+            rows={Math.min(10, Math.max(3, card.suggestion.split('\n').length + 1))}
+            aria-label="Suggested replacement"
+            spellCheck={false}
+            value={card.suggestion}
+            onChange={(event) => card.onSuggestionChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) card.onSubmit();
+              if (event.key === 'Escape') card.onCancel();
+            }}
+          />
+        </>
+      )}
+
       <MentionTextarea
         ref={inputRef}
         rows={3}
-        placeholder={card.commentable ? `Comment on ${where}…` : 'Comment on this file…'}
+        placeholder={
+          card.kind === 'suggestion' && card.commentable
+            ? 'Explain the suggestion (optional)…'
+            : card.commentable
+              ? `Comment on ${where}…`
+              : 'Comment on this file…'
+        }
         value={card.body}
         onValueChange={card.onChange}
         onKeyDown={(e) => {
@@ -213,8 +266,20 @@ function DraftCard({ card, top, innerRef }: { card: RailDraft; top: number; inne
         }}
       />
       <div className="card-actions">
-        <button className="btn primary tiny" disabled={!card.body.trim()} onClick={card.onSubmit}>
-          {card.commentable ? 'Add to review' : 'Comment on file'}
+        <button
+          className="btn primary tiny"
+          disabled={
+            card.kind === 'suggestion' && card.commentable
+              ? card.suggestion === card.original
+              : !card.body.trim()
+          }
+          onClick={card.onSubmit}
+        >
+          {card.kind === 'suggestion' && card.commentable
+            ? 'Add suggestion'
+            : card.commentable
+              ? 'Add to review'
+              : 'Comment on file'}
         </button>
         <button className="btn link tiny" onClick={card.onCancel}>
           Cancel
@@ -293,7 +358,7 @@ function PendingCard({
   return (
     <article ref={innerRef} className="card pending" style={{ top }} onClick={() => onFocus(card.range)}>
       <header>
-        <span className="tag">pending</span>
+        <span className="tag">{card.suggestion === undefined ? 'pending' : 'suggestion'}</span>
         <span className="muted small">
           {card.fileLevel
             ? 'on this file'
@@ -312,7 +377,8 @@ function PendingCard({
         </button>
       </header>
       <blockquote>{card.quote}</blockquote>
-      <p>{card.body}</p>
+      {card.body && <p>{card.body}</p>}
+      {card.suggestion !== undefined && <pre className="suggestion-preview">{card.suggestion || 'Delete these lines'}</pre>}
     </article>
   );
 }

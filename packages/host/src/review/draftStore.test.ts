@@ -27,12 +27,17 @@ describe('draftStore', () => {
   });
 
   it('round-trips a buffer for the same commit', () => {
-    saveDrafts('o', 'r', 7, { headSha: 'abc', summary: 'looks good', comments: [comment('c1', 12)] });
+    saveDrafts('o', 'r', 7, {
+      headSha: 'abc',
+      summary: 'looks good',
+      comments: [{ ...comment('c1', 12), suggestion: 'replacement text' }],
+    });
     const { buffer, stale } = loadDrafts('o', 'r', 7, 'abc');
     expect(stale).toBe(0);
     expect(buffer?.summary).toBe('looks good');
     expect(buffer?.comments).toHaveLength(1);
     expect(buffer?.comments[0]?.line).toBe(12);
+    expect(buffer?.comments[0]?.suggestion).toBe('replacement text');
   });
 
   /*
@@ -54,6 +59,16 @@ describe('draftStore', () => {
     saveDrafts('o', 'r', 8, { headSha: 'zzz', summary: '', comments: [comment('c1', 2), comment('c2', 3)] });
     expect(loadDrafts('o', 'r', 7, 'abc').buffer?.comments).toHaveLength(1);
     expect(draftCounts()).toEqual({ [draftKey('o', 'r', 7)]: 1, [draftKey('o', 'r', 8)]: 2 });
+  });
+
+  it('keeps branch drafts separate from pull-request drafts and from other branches', () => {
+    saveDrafts('o', 'r', 'branch:docs/update', { headSha: 'abc', summary: '', comments: [comment('c1', 1)] });
+    saveDrafts('o', 'r', 'branch:docs/other', { headSha: 'def', summary: '', comments: [comment('c2', 2)] });
+    expect(loadDrafts('o', 'r', 'branch:docs/update', 'abc').buffer?.comments).toHaveLength(1);
+    expect(draftCounts()).toMatchObject({
+      [draftKey('o', 'r', 'branch:docs/update')]: 1,
+      [draftKey('o', 'r', 'branch:docs/other')]: 1,
+    });
   });
 
   it('removes the entry once the buffer is empty, rather than leaving a husk behind', () => {

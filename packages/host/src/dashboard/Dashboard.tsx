@@ -3,17 +3,20 @@ import type { DashboardData, Prefs } from '../api.js';
 import { api } from '../api.js';
 import { draftCounts, draftKey } from '../review/draftStore.js';
 import { parsePullRequestReference } from './pullRequestLink.js';
+import { parseBranchReference } from './branchLink.js';
 
 type Data = DashboardData & { prefs: Prefs; staleError?: string | null };
 
 export function Dashboard({
   data,
   onOpen,
+  onOpenBranch,
   onPrefs,
   onRefresh,
 }: {
   data: Data;
   onOpen: (owner: string, repo: string, number: number) => void;
+  onOpenBranch: (owner: string, repo: string, branch: string) => void;
   onPrefs: (prefs: Prefs) => void;
   onRefresh: () => void;
 }) {
@@ -49,7 +52,7 @@ export function Dashboard({
     <div className="dash">
       <div className="dash-intro">
         <p className="dash-lede">{summarise(review.length, review.filter((pr) => pr.markdown.count > 0).length)}</p>
-        <QuickOpen onOpen={onOpen} />
+        <QuickOpen onOpen={onOpen} onOpenBranch={onOpenBranch} />
       </div>
 
       {!data.prefs.pinCardDismissed && data.repos.length > 0 && (
@@ -140,19 +143,31 @@ export function Dashboard({
   );
 }
 
-function QuickOpen({ onOpen }: { onOpen: (owner: string, repo: string, number: number) => void }) {
+function QuickOpen({
+  onOpen,
+  onOpenBranch,
+}: {
+  onOpen: (owner: string, repo: string, number: number) => void;
+  onOpenBranch: (owner: string, repo: string, branch: string) => void;
+}) {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const open = (candidate: string): boolean => {
     const reference = parsePullRequestReference(candidate);
-    if (!reference) {
-      setError('Paste a github.com pull request link or enter owner/repo#123.');
-      return false;
+    if (reference) {
+      setError(null);
+      onOpen(reference.owner, reference.repo, reference.number);
+      return true;
     }
-    setError(null);
-    onOpen(reference.owner, reference.repo, reference.number);
-    return true;
+    const branch = parseBranchReference(candidate);
+    if (branch) {
+      setError(null);
+      onOpenBranch(branch.owner, branch.repo, branch.branch);
+      return true;
+    }
+    setError('Paste a GitHub pull request or branch link, or enter owner/repo#123 or owner/repo@branch.');
+    return false;
   };
 
   return (
@@ -164,8 +179,8 @@ function QuickOpen({ onOpen }: { onOpen: (owner: string, repo: string, number: n
       }}
     >
       <div className="quick-open-copy">
-        <label htmlFor="quick-open-pr">Open a pull request</label>
-        <span>Paste a GitHub PR link—or the whole Slack message.</span>
+        <label htmlFor="quick-open-pr">Open a pull request or branch</label>
+        <span>Branch feedback stays on this Mac until you create the PR.</span>
       </div>
       <div className="quick-open-action">
         <input
@@ -177,12 +192,12 @@ function QuickOpen({ onOpen }: { onOpen: (owner: string, repo: string, number: n
           }}
           onPaste={(event) => {
             const pasted = event.clipboardData.getData('text');
-            if (!parsePullRequestReference(pasted)) return;
+            if (!parsePullRequestReference(pasted) && !parseBranchReference(pasted)) return;
             event.preventDefault();
             setValue(pasted);
             open(pasted);
           }}
-          placeholder="https://github.com/owner/repo/pull/123"
+          placeholder="PR URL or owner/repo@branch"
           aria-describedby={error ? 'quick-open-error' : 'quick-open-hint'}
           aria-invalid={Boolean(error)}
           autoComplete="off"

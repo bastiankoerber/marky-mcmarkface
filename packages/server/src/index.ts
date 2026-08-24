@@ -13,6 +13,13 @@ import { dirname, join, resolve } from 'node:path';
 
 import { GitHubClient } from './github/client.js';
 import { fetchPr } from './github/pr.js';
+import {
+  BranchReviewError,
+  createBranchPullRequest,
+  fetchBranch,
+  isBranchName,
+  type CreateBranchPullRequestInput,
+} from './github/branch.js';
 import { fetchRepositoryFile, isRepositoryFilePath } from './github/repository-file.js';
 import {
   clearAssetScopes,
@@ -188,7 +195,7 @@ app.onError((err, c) => {
   // content — including a credential — so it is logged shape-only and replaced.
   if (err instanceof HttpError) return c.json({ error: err.message }, err.status as 400);
   if (err instanceof TokenValidationError) return c.json({ error: err.message }, err.status as 400);
-  if (err instanceof ReviewSubmitError || err instanceof OAuthError || err instanceof DeviceFlowError) {
+  if (err instanceof ReviewSubmitError || err instanceof BranchReviewError || err instanceof OAuthError || err instanceof DeviceFlowError) {
     return c.json({ error: err.message }, 400);
   }
   console.error(`[marky-mcmarkface] ${c.req.method} ${c.req.path} failed: ${(err as Error).name}`);
@@ -515,6 +522,38 @@ app.get('/api/pr/:owner/:repo/:number/file', async (c) => {
   const file = await fetchRepositoryFile(requireClient(), owner, repo, path);
   if (!file) throw new HttpError(404, `Could not find that file on the repository's latest default branch.`);
   return c.json(file);
+});
+
+app.get('/api/branch/:owner/:repo', async (c) => {
+  const { owner, repo } = c.req.param();
+  const branch = c.req.query('ref') ?? '';
+  if (!isBranchName(branch)) throw new HttpError(400, 'That branch name is not supported.');
+  const detail = await fetchBranch(requireClient(), owner, repo, branch);
+  const capability = issueAssetScope({ owner, repo, sha: detail.headSha, baseSha: detail.baseSha });
+  return c.json({ ...detail, imageBaseUrl: `/_marky/image/${capability}` });
+});
+
+app.get('/api/branch/:owner/:repo/file', async (c) => {
+  const { owner, repo } = c.req.param();
+  const branch = c.req.query('ref') ?? '';
+  const path = c.req.query('path') ?? '';
+  if (!isBranchName(branch)) throw new HttpError(400, 'That branch name is not supported.');
+  if (!isRepositoryFilePath(path)) throw new HttpError(400, 'That repository file path is not supported.');
+  const file = await fetchRepositoryFile(requireClient(), owner, repo, path, branch);
+  if (!file) throw new HttpError(404, `Could not find that file on branch ${branch}.`);
+  return c.json(file);
+});
+
+app.post('/api/branch/:owner/:repo/pull-request', async (c) => {
+  const { owner, repo } = c.req.param();
+  const input = await readJson<CreateBranchPullRequestInput>(c);
+  if (!isBranchName(input.branch)) throw new HttpError(400, 'That branch name is not supported.');
+  if (!input.title?.trim()) throw new HttpError(400, 'A pull request title is required.');
+  if (!input.expectedHeadSha?.trim()) throw new HttpError(400, 'The reviewed branch commit is required.');
+  if (!Array.isArray(input.comments)) throw new HttpError(400, 'Comments must be an array.');
+  const result = await createBranchPullRequest(requireClient(), owner, repo, input);
+  void poller.refresh();
+  return c.json(result);
 });
 
 app.post('/api/pr/:owner/:repo/:number/review', async (c) => {
