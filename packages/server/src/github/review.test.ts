@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { renderCommentBody, type PendingComment } from './review.js';
+import { describe, expect, it, vi } from 'vitest';
+import type { GitHubClient } from './client.js';
+import { renderCommentBody, submitReview, type PendingComment } from './review.js';
 
 const comment = (suggestion?: string, body = 'Use the shorter wording.'): PendingComment => ({
   path: 'README.md',
@@ -28,5 +29,21 @@ describe('renderCommentBody', () => {
     expect(renderCommentBody(comment('```ts\nconst value = 1;\n```'))).toContain(
       '````suggestion\n```ts\nconst value = 1;\n```\n````',
     );
+  });
+
+  it('posts file-only feedback without first creating an empty review', async () => {
+    const write = vi.fn().mockResolvedValue({ html_url: 'https://github.com/acme/docs/pull/2#comment' });
+    const result = await submitReview({ write } as unknown as GitHubClient, 'acme', 'docs', 2, {
+      event: 'COMMENT',
+      body: '',
+      commitId: 'abc',
+      comments: [{ ...comment(), subjectType: 'file' }],
+    });
+
+    expect(write).toHaveBeenCalledTimes(1);
+    expect(write).toHaveBeenCalledWith('POST', '/repos/acme/docs/pulls/2/comments', expect.objectContaining({
+      subject_type: 'file',
+    }));
+    expect(result).toMatchObject({ id: 0, fileCommentsPosted: 1 });
   });
 });

@@ -95,11 +95,12 @@ you read. Drafts survive a reload and are listed on the dashboard, so an unsubmi
 never mistaken for feedback already given. If new commits land while you were writing, the
 drafts are dropped rather than re-pinned to lines that have since moved, and Marky McMarkface says so.
 
-**Review before the pull request exists.** Open `owner/repo@branch` from the dashboard to compare
-a branch with the repository's default branch. Comments and suggested edits remain local while
-you read. After you confirm the title and description, **Create pull request** creates it and
-posts the buffered feedback as one GitHub review. If the branch moved, creation stops and asks
-you to reopen it rather than attaching comments to the wrong lines.
+**Review before the pull request exists.** Open `owner/repo@branch` to compare a branch with the
+repository's default branch, or paste a GitHub `/blob/branch/path.md` URL to edit one current
+document directly. Comments and suggested edits remain local while you read. For a document,
+**Create pull request** makes a new branch, commits the suggested edits, opens the PR, and posts
+the buffered notes. If the source branch moved, creation stops and asks you to reopen it rather
+than applying edits to stale lines.
 
 **Light, dark, or whatever your Mac is doing.** Three-state switch in the top bar. Dark is warm
 rather than blue-black, and the paper grain is light-mode only.
