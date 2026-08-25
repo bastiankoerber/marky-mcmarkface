@@ -315,27 +315,46 @@ export function Review({
     [file],
   );
 
-  const host = useMemo<ViewerHost>(
-    () => ({
-      onSelect: (range) => {
-        if (readOnlyReference || !range || !headSource) {
-          setDraft(null);
-          return;
-        }
-        const startLine = offsetToLine(headSource, range.start).line;
-        const line = offsetToLine(headSource, Math.max(range.start, range.end - 1)).line;
-        setDraft({
-          range,
-          startLine,
-          line,
-          quote: quoteFor(headSource, range).exact.slice(0, 300),
-          commentable: commentableAt(startLine, line),
-          suggestion: suggestionForLines(headSource, startLine, line),
-        });
-        setDraftBody('');
-        setDraftKind('comment');
-        setDraftSuggestion(suggestionForLines(headSource, startLine, line));
-      },
+  const host = useMemo<ViewerHost>(() => {
+    const openDraft = (
+      range: SourceRange | null,
+      kind: 'comment' | 'suggestion',
+      replacement?: string,
+    ): boolean => {
+      if (readOnlyReference || !range || !headSource) {
+        setDraft(null);
+        return false;
+      }
+      const startLine = offsetToLine(headSource, range.start).line;
+      const line = offsetToLine(headSource, Math.max(range.start, range.end - 1)).line;
+      const original = suggestionForLines(headSource, startLine, line);
+      const commentable = commentableAt(startLine, line);
+      if (kind === 'suggestion' && !commentable) {
+        setDraftNotice('GitHub cannot attach a suggestion because part of this diagram is outside the diff.');
+        return false;
+      }
+      setDraft({
+        range,
+        startLine,
+        line,
+        quote: quoteFor(headSource, range).exact.slice(0, 300),
+        commentable,
+        suggestion: original,
+      });
+      setDraftBody('');
+      setDraftKind(kind);
+      setDraftSuggestion(kind === 'suggestion' && replacement !== undefined ? replacement : original);
+      return true;
+    };
+
+    return {
+      onSelect: (range) => openDraft(range, 'comment'),
+      ...(readOnlyReference
+        ? {}
+        : {
+            requestSuggestion: (range: SourceRange, replacement: string) =>
+              openDraft(range, 'suggestion', replacement),
+          }),
       commentableRanges: () => (readOnlyReference ? [] : (file?.patch.rightLines ?? [])),
       requestComment: () => {},
       resolveImageUrl: (source, documentPath) =>
@@ -345,9 +364,8 @@ export function Review({
         return target ? openPath(target.path) : false;
       },
       theme,
-    }),
-    [headSource, commentableAt, file, openPath, pr?.imageBaseUrl, readOnlyReference, theme],
-  );
+    };
+  }, [headSource, commentableAt, file, openPath, pr?.imageBaseUrl, readOnlyReference, theme]);
 
   const addComment = () => {
     if (!draft || !file || readOnlyReference) return;

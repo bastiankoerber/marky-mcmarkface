@@ -3,7 +3,12 @@ import { JSDOM } from 'jsdom';
 import { diffMarkdown } from './blockdiff.js';
 import { parseMarkdown, parseStandaloneMermaid } from './parse.js';
 import { renderToHtml } from './render.js';
-import { prepareMermaidLinks, sourceFromDiagram } from './mermaid.js';
+import {
+  prepareMermaidLinks,
+  replacementForMermaid,
+  sourceFromDiagram,
+  sourceRangeFromDiagram,
+} from './mermaid.js';
 import { sanitizeMermaidSvg } from './sanitize.js';
 import DOMPurify from 'dompurify';
 
@@ -20,6 +25,43 @@ describe('Mermaid source discovery', () => {
     const diagram = diagramFrom(renderToHtml(source, parseMarkdown(source)));
     expect(sourceFromDiagram(diagram)).toBe('graph TD\n  A --> B');
     expect(diagram.getAttribute('data-marky-mcmarkface-pos')).toBe(`0:${source.length - 1}`);
+  });
+
+  it('reads only the renderer nonce when resolving an editable diagram range', () => {
+    const dom = new JSDOM(
+      '<!doctype html><main data-marky-mcmarkface-nonce="trusted">' +
+        '<div data-marky-mcmarkface-pos="900:999" data-marky-mcmarkface-pos-trusted="12:48"></div>' +
+        '</main>',
+    );
+    const root = dom.window.document.querySelector('main')!;
+    expect(sourceRangeFromDiagram(root, root.firstElementChild!)).toEqual({ side: 'RIGHT', start: 12, end: 48 });
+  });
+
+  it('preserves Markdown fences when edited Mermaid source becomes a suggestion', () => {
+    const document = 'Before\n\n```mermaid\nflowchart LR\n  A --> B\n```\n\nAfter\n';
+    const original = 'flowchart LR\n  A --> B';
+    const start = document.indexOf('```mermaid');
+    const end = document.indexOf('\n\nAfter');
+    expect(
+      replacementForMermaid(
+        document,
+        { side: 'RIGHT', start, end },
+        original,
+        'flowchart LR\n  A --> Changed',
+      ),
+    ).toBe('```mermaid\nflowchart LR\n  A --> Changed\n```');
+  });
+
+  it('preserves a standalone Mermaid file final newline around edited source', () => {
+    const document = 'flowchart LR\n  A --> B\n';
+    expect(
+      replacementForMermaid(
+        document,
+        { side: 'RIGHT', start: 0, end: document.length },
+        document,
+        'flowchart TD\n  A --> C\n',
+      ),
+    ).toBe('flowchart TD\n  A --> C\n');
   });
 
   it('does not treat other fenced code as a diagram', () => {

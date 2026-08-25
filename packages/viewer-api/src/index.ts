@@ -125,6 +125,15 @@ export interface ViewerHost {
   commentableRanges(side: Side): Array<[number, number]>;
   requestComment(selection: SourceRange): void;
   /**
+   * Open a source-backed suggestion for a rendered editor.
+   *
+   * Optional so existing third-party hosts remain compatible. `replacement` must cover the
+   * complete source lines addressed by `selection`; the host remains responsible for deciding
+   * whether that range can be suggested. Returns true when the host accepted the draft, or false
+   * when the selection cannot be suggested.
+   */
+  requestSuggestion?: (selection: SourceRange, replacement: string) => boolean;
+  /**
    * Turn a document-authored image source into a URL the viewer may load.
    *
    * The host owns resource access because it owns the document's trust boundary. A viewer gets
