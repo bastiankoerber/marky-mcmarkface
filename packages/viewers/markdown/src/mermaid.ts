@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify';
+import type { SourceRange } from '@marky-mcmarkface/viewer-api';
 import type { MermaidConfig } from 'mermaid';
 import { sanitizeMermaidSvg } from './sanitize.js';
 
@@ -9,7 +10,13 @@ const MAX_SCALE = 4;
 const SCALE_STEP = 1.25;
 
 let sequence = 0;
-let renderQueue: Promise<void> = Promise.resolve();
+let renderQueue: Promise<unknown> = Promise.resolve();
+
+interface MermaidEnhancementOptions {
+  theme: 'light' | 'dark';
+  documentSource: string;
+  requestSuggestion?: (selection: SourceRange, replacement: string) => boolean;
+}
 
 /**
  * Upgrade Mermaid code blocks after authored Markdown has crossed the sanitisation boundary.
@@ -17,7 +24,10 @@ let renderQueue: Promise<void> = Promise.resolve();
  * The original source is restored during effect cleanup, which makes theme changes and React
  * remounts deterministic. Rendering is serialised because Mermaid configuration is process-wide.
  */
-export function enhanceMermaidDiagrams(root: HTMLElement, theme: 'light' | 'dark'): () => void {
+export function enhanceMermaidDiagrams(
+  root: HTMLElement,
+  { theme, documentSource, requestSuggestion }: MermaidEnhancementOptions,
+): () => void {
   const diagrams = Array.from(root.querySelectorAll<HTMLElement>(DIAGRAM_SELECTOR)).map((element) => ({
     element,
     originalHtml: element.innerHTML,
@@ -28,30 +38,48 @@ export function enhanceMermaidDiagrams(root: HTMLElement, theme: 'light' | 'dark
   for (const diagram of diagrams) {
     const source = sourceFromDiagram(diagram.element);
     if (source === null) continue;
-    void enqueue(async () => {
+    const range = sourceRangeFromDiagram(root, diagram.element);
+    void (async () => {
       if (!active || !diagram.element.isConnected) return;
       try {
-        if (source.length > MAX_SOURCE_LENGTH) {
-          throw new Error('diagram source exceeds the rendering limit');
-        }
-        const mermaid = (await import('mermaid')).default;
-        mermaid.initialize(configFor(theme));
-        const result = await mermaid.render(`marky-mermaid-${++sequence}`, source);
+        const rendered = await renderMermaidSvg(source, theme);
         if (!active || !diagram.element.isConnected) return;
 
-        const viewport = root.ownerDocument.createElement('div');
-        viewport.className = 'md-mermaid-viewport';
-        viewport.tabIndex = 0;
-        viewport.setAttribute('aria-label', 'Mermaid diagram. Scroll to explore when zoomed.');
-        viewport.innerHTML = sanitizeMermaidSvg(result.svg, DOMPurify);
-        const svg = viewport.querySelector('svg');
-        if (!svg) throw new Error('Mermaid returned no SVG');
-        svg.setAttribute('role', 'img');
-        prepareMermaidLinks(svg);
+        const { viewport, svg } = createDiagramViewport(root.ownerDocument, rendered);
 
         const output = root.ownerDocument.createElement('div');
         output.className = 'md-mermaid-output';
-        const controls = createDiagramControls(viewport, svg);
+        let editorCleanup = () => {};
+        const editable = Boolean(range && requestSuggestion);
+        const closeEditor = () => {
+          editorCleanup();
+          editorCleanup = () => {};
+          if (!active || !diagram.element.isConnected) return;
+          diagram.element.replaceChildren(output);
+        };
+        const openEditor = editable
+          ? () => {
+              if (!range || !requestSuggestion || !diagram.element.isConnected) return;
+              const editor = createMermaidEditor({
+                document: root.ownerDocument,
+                source,
+                theme,
+                replacementFor: (nextSource) =>
+                  replacementForMermaid(documentSource, range, source, nextSource),
+                onCancel: closeEditor,
+                onSuggest: (replacement) => {
+                  const accepted = requestSuggestion(range, replacement);
+                  if (accepted) closeEditor();
+                  return accepted;
+                },
+              });
+              editorCleanup();
+              editorCleanup = editor.cleanup;
+              diagram.element.replaceChildren(editor.element);
+              editor.focus();
+            }
+          : undefined;
+        const controls = createDiagramControls(viewport, svg, openEditor);
         output.append(controls.element, viewport);
 
         // Removing the stamped source avoids anchoring a comment to invisible code. SVG labels
@@ -59,7 +87,13 @@ export function enhanceMermaidDiagrams(root: HTMLElement, theme: 'light' | 'dark
         // source block and existing comments remain visibly positioned beside the diagram.
         diagram.element.replaceChildren(output);
         diagram.element.setAttribute('data-marky-mcmarkface-mermaid-rendered', '');
-        diagram.cleanup = controls.mount();
+        const controlsCleanup = controls.mount();
+        const editCleanup = openEditor ? makeDiagramEditable(viewport, openEditor) : () => {};
+        diagram.cleanup = () => {
+          editorCleanup();
+          editCleanup();
+          controlsCleanup();
+        };
       } catch {
         if (!active || !diagram.element.isConnected) return;
         const message = root.ownerDocument.createElement('div');
@@ -68,7 +102,7 @@ export function enhanceMermaidDiagrams(root: HTMLElement, theme: 'light' | 'dark
         message.textContent = 'Mermaid diagram could not be rendered. Source is shown below.';
         diagram.element.prepend(message);
       }
-    });
+    })();
   }
 
   return () => {
@@ -98,16 +132,221 @@ export function prepareMermaidLinks(svg: SVGElement): void {
   }
 }
 
+function createDiagramViewport(
+  document: Document,
+  rendered: string,
+): { viewport: HTMLElement; svg: SVGElement } {
+  const viewport = document.createElement('div');
+  viewport.className = 'md-mermaid-viewport';
+  viewport.tabIndex = 0;
+  viewport.setAttribute('aria-label', 'Mermaid diagram. Scroll to explore when zoomed.');
+  viewport.innerHTML = rendered;
+  const svg = viewport.querySelector('svg');
+  if (!svg) throw new Error('Mermaid returned no SVG');
+  svg.setAttribute('role', 'img');
+  prepareMermaidLinks(svg);
+  return { viewport, svg };
+}
+
+function makeDiagramEditable(viewport: HTMLElement, onEdit: () => void): () => void {
+  viewport.classList.add('md-mermaid-editable');
+  viewport.setAttribute('aria-label', 'Mermaid diagram. Click to edit; scroll to explore when zoomed.');
+  const click = (event: MouseEvent) => {
+    const target = event.target as Element | null;
+    if (target?.closest?.('a')) return;
+    onEdit();
+  };
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key !== 'Enter') return;
+    event.preventDefault();
+    onEdit();
+  };
+  viewport.addEventListener('click', click);
+  viewport.addEventListener('keydown', keydown);
+  return () => {
+    viewport.removeEventListener('click', click);
+    viewport.removeEventListener('keydown', keydown);
+  };
+}
+
+interface MermaidEditorOptions {
+  document: Document;
+  source: string;
+  theme: 'light' | 'dark';
+  replacementFor: (source: string) => string | null;
+  onCancel: () => void;
+  onSuggest: (replacement: string) => boolean;
+}
+
+interface MermaidEditor {
+  element: HTMLElement;
+  focus: () => void;
+  cleanup: () => void;
+}
+
+function createMermaidEditor({
+  document,
+  source,
+  theme,
+  replacementFor,
+  onCancel,
+  onSuggest,
+}: MermaidEditorOptions): MermaidEditor {
+  const timerWindow = document.defaultView;
+  if (!timerWindow) throw new Error('Mermaid editor requires a browser document');
+  const element = document.createElement('section');
+  element.className = 'md-mermaid-editor';
+  element.setAttribute('aria-label', 'Edit Mermaid diagram');
+
+  const header = document.createElement('header');
+  header.className = 'md-mermaid-editor-header';
+  const title = document.createElement('strong');
+  title.textContent = 'Edit Mermaid source';
+  const status = document.createElement('span');
+  status.className = 'md-mermaid-editor-status';
+  status.setAttribute('role', 'status');
+  status.setAttribute('aria-live', 'polite');
+  const actions = document.createElement('div');
+  actions.className = 'md-mermaid-editor-actions';
+  const cancelButton = editorButton(document, 'Cancel');
+  const suggestButton = editorButton(document, 'Add suggestion', true);
+  actions.append(cancelButton, suggestButton);
+  header.append(title, status, actions);
+
+  const body = document.createElement('div');
+  body.className = 'md-mermaid-editor-body';
+  const sourceField = document.createElement('label');
+  sourceField.className = 'md-mermaid-editor-source';
+  const sourceLabel = document.createElement('span');
+  sourceLabel.textContent = 'Mermaid source';
+  const textarea = document.createElement('textarea');
+  textarea.className = 'md-mermaid-editor-textarea';
+  textarea.setAttribute('aria-label', 'Mermaid source');
+  textarea.setAttribute('spellcheck', 'false');
+  textarea.value = source;
+  sourceField.append(sourceLabel, textarea);
+  const preview = document.createElement('div');
+  preview.className = 'md-mermaid-editor-preview';
+  preview.setAttribute('aria-label', 'Live Mermaid preview');
+  body.append(sourceField, preview);
+  element.append(header, body);
+
+  let disposed = false;
+  let valid = false;
+  let previewRequest = 0;
+  let previewTimer = 0;
+  let previewCleanup = () => {};
+
+  const updateSubmit = () => {
+    suggestButton.disabled =
+      !valid || textarea.value === source || replacementFor(textarea.value) === null;
+  };
+
+  const renderPreview = async () => {
+    const request = ++previewRequest;
+    const nextSource = textarea.value;
+    valid = false;
+    updateSubmit();
+    status.textContent = 'Rendering preview…';
+    try {
+      const rendered = await renderMermaidSvg(nextSource, theme);
+      if (disposed || request !== previewRequest || !element.isConnected) return;
+      const { viewport, svg } = createDiagramViewport(document, rendered);
+      const controls = createDiagramControls(viewport, svg);
+      const output = document.createElement('div');
+      output.className = 'md-mermaid-editor-preview-output';
+      output.append(controls.element, viewport);
+      previewCleanup();
+      previewCleanup = controls.mount();
+      preview.replaceChildren(output);
+      valid = true;
+      status.textContent = 'Preview updated';
+      updateSubmit();
+    } catch {
+      if (disposed || request !== previewRequest || !element.isConnected) return;
+      previewCleanup();
+      previewCleanup = () => {};
+      const error = document.createElement('p');
+      error.className = 'md-mermaid-editor-error';
+      error.setAttribute('role', 'alert');
+      error.textContent = 'This Mermaid source cannot be rendered yet.';
+      preview.replaceChildren(error);
+      status.textContent = 'Fix the Mermaid syntax to continue';
+      valid = false;
+      updateSubmit();
+    }
+  };
+
+  const schedulePreview = () => {
+    timerWindow.clearTimeout(previewTimer);
+    previewTimer = timerWindow.setTimeout(() => void renderPreview(), 220);
+    valid = false;
+    status.textContent = 'Waiting to update preview…';
+    updateSubmit();
+  };
+  const cancel = () => onCancel();
+  const suggest = () => {
+    const replacement = replacementFor(textarea.value);
+    if (!valid || replacement === null || textarea.value === source) return;
+    if (!onSuggest(replacement)) {
+      status.textContent = 'GitHub cannot attach this whole-diagram suggestion to the current diff';
+    }
+  };
+  const keydown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      cancel();
+    }
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && !suggestButton.disabled) {
+      event.preventDefault();
+      suggest();
+    }
+  };
+
+  textarea.addEventListener('input', schedulePreview);
+  textarea.addEventListener('keydown', keydown);
+  cancelButton.addEventListener('click', cancel);
+  suggestButton.addEventListener('click', suggest);
+  void renderPreview();
+
+  return {
+    element,
+    focus: () => textarea.focus({ preventScroll: true }),
+    cleanup: () => {
+      disposed = true;
+      previewRequest++;
+      timerWindow.clearTimeout(previewTimer);
+      previewCleanup();
+      textarea.removeEventListener('input', schedulePreview);
+      textarea.removeEventListener('keydown', keydown);
+      cancelButton.removeEventListener('click', cancel);
+      suggestButton.removeEventListener('click', suggest);
+    },
+  };
+}
+
+function editorButton(document: Document, label: string, primary = false): HTMLButtonElement {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = `md-mermaid-editor-button${primary ? ' primary' : ''}`;
+  button.textContent = label;
+  return button;
+}
+
 interface DiagramControls {
   element: HTMLElement;
   mount: () => () => void;
 }
 
-function createDiagramControls(viewport: HTMLElement, svg: SVGElement): DiagramControls {
+function createDiagramControls(
+  viewport: HTMLElement,
+  svg: SVGElement,
+  onEdit?: () => void,
+): DiagramControls {
   const document = viewport.ownerDocument;
   const element = document.createElement('div');
   element.className = 'md-mermaid-controls';
-  element.setAttribute('aria-label', 'Diagram zoom controls');
+  element.setAttribute('aria-label', onEdit ? 'Diagram controls' : 'Diagram zoom controls');
 
   const status = document.createElement('output');
   status.className = 'md-mermaid-scale';
@@ -117,7 +356,8 @@ function createDiagramControls(viewport: HTMLElement, svg: SVGElement): DiagramC
   const actualButton = controlButton(document, '1:1', 'Show diagram at its natural size');
   const outButton = controlButton(document, '−', 'Zoom out');
   const inButton = controlButton(document, '+', 'Zoom in');
-  element.append(fitButton, actualButton, outButton, status, inButton);
+  const editButton = onEdit ? controlButton(document, 'Edit', 'Edit Mermaid source') : null;
+  element.append(...(editButton ? [editButton] : []), fitButton, actualButton, outButton, status, inButton);
 
   const naturalWidth = widthOf(svg);
   let scale = 1;
@@ -154,6 +394,7 @@ function createDiagramControls(viewport: HTMLElement, svg: SVGElement): DiagramC
       actualButton.addEventListener('click', actual);
       outButton.addEventListener('click', zoomOut);
       inButton.addEventListener('click', zoomIn);
+      editButton?.addEventListener('click', onEdit!);
       const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => fitted && fit());
       observer?.observe(viewport);
       const fitScale = Math.min(1, Math.max(1, viewport.clientWidth - 24) / naturalWidth);
@@ -169,6 +410,7 @@ function createDiagramControls(viewport: HTMLElement, svg: SVGElement): DiagramC
         actualButton.removeEventListener('click', actual);
         outButton.removeEventListener('click', zoomOut);
         inButton.removeEventListener('click', zoomIn);
+        editButton?.removeEventListener('click', onEdit!);
       };
     },
   };
@@ -200,9 +442,56 @@ export function sourceFromDiagram(element: Element): string | null {
   return current.textContent;
 }
 
-function enqueue(task: () => Promise<void>): Promise<void> {
+/** Read the wrapper's nonced source stamp without trusting any authored attribute name. */
+export function sourceRangeFromDiagram(root: Element, element: Element): SourceRange | null {
+  const nonce = root.getAttribute('data-marky-mcmarkface-nonce');
+  const attribute = nonce ? `data-marky-mcmarkface-pos-${nonce}` : 'data-marky-mcmarkface-pos';
+  const raw = element.getAttribute(attribute);
+  if (!raw) return null;
+  const separator = raw.indexOf(':');
+  if (separator === -1) return null;
+  const start = Number(raw.slice(0, separator));
+  const end = Number(raw.slice(separator + 1));
+  if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end <= start) return null;
+  return { side: 'RIGHT', start, end };
+}
+
+/** Preserve Markdown fences (or a standalone file's final newline) around edited Mermaid source. */
+export function replacementForMermaid(
+  documentSource: string,
+  range: SourceRange,
+  originalSource: string,
+  nextSource: string,
+): string | null {
+  if (range.start < 0 || range.end > documentSource.length || range.end <= range.start) return null;
+  const authoredBlock = documentSource.slice(range.start, range.end);
+  const sourceStart = authoredBlock.indexOf(originalSource);
+  if (sourceStart === -1) return null;
+  return (
+    authoredBlock.slice(0, sourceStart) +
+    nextSource +
+    authoredBlock.slice(sourceStart + originalSource.length)
+  );
+}
+
+async function renderMermaidSvg(source: string, theme: 'light' | 'dark'): Promise<string> {
+  if (source.length > MAX_SOURCE_LENGTH) {
+    throw new Error('diagram source exceeds the rendering limit');
+  }
+  return enqueue(async () => {
+    const mermaid = (await import('mermaid')).default;
+    mermaid.initialize(configFor(theme));
+    const result = await mermaid.render(`marky-mermaid-${++sequence}`, source);
+    return sanitizeMermaidSvg(result.svg, DOMPurify);
+  });
+}
+
+function enqueue<T>(task: () => Promise<T>): Promise<T> {
   const next = renderQueue.then(task, task);
-  renderQueue = next.catch(() => undefined);
+  renderQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
   return next;
 }
 

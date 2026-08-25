@@ -65,6 +65,13 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     };
   }, [file.head, file.base, file.path, host.resolveImageUrl, mode]);
 
+  // React compares the `dangerouslySetInnerHTML` value by object identity before deciding
+  // whether to write `innerHTML`. The host rerenders as soon as anchoring registers; allocating
+  // this object inline made that harmless parent render replace the entire Markdown subtree
+  // while an asynchronous Mermaid render was in flight. Keep the object stable until the actual
+  // HTML changes so post-render enhancements retain their live DOM nodes.
+  const renderedHtml = useMemo(() => ({ __html: html }), [html]);
+
   // Register the anchoring implementation. The host owns everything downstream of this — the
   // viewer's entire contribution to commenting is these five functions.
   useEffect(() => {
@@ -74,7 +81,11 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     const layoutListeners = new Set<() => void>();
     const observer = new ResizeObserver(() => layoutListeners.forEach((cb) => cb()));
     observer.observe(root);
-    const restoreMermaid = enhanceMermaidDiagrams(root, host.theme);
+    const restoreMermaid = enhanceMermaidDiagrams(root, {
+      theme: host.theme,
+      documentSource: normaliseSource(file.head ?? ''),
+      ...(host.requestSuggestion ? { requestSuggestion: host.requestSuggestion } : {}),
+    });
 
     // A blocked, missing, or unsupported image should not disappear as a tiny broken icon. The
     // replacement is created after sanitisation, so hostile Markdown cannot borrow its class or
@@ -133,7 +144,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
       layoutListeners.clear();
       registerAnchoring(null);
     };
-  }, [registerAnchoring, html, host.theme]);
+  }, [file.head, host.requestSuggestion, host.theme, html, registerAnchoring]);
 
   // Report selections upward. Debounced through a frame so a drag reports once on release
   // rather than on every intermediate selectionchange.
@@ -141,7 +152,9 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
     const root = containerRef.current;
     if (!root) return;
 
-    const onUp = () => {
+    const onUp = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('.md-mermaid-editor')) return;
       requestAnimationFrame(() => {
         const selection = root.ownerDocument.getSelection();
         if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
@@ -198,7 +211,7 @@ export function MarkdownViewer({ file, host, registerAnchoring, mode = 'rich' }:
       className="md-body"
       data-marky-mcmarkface-root=""
       data-marky-mcmarkface-nonce={nonce}
-      dangerouslySetInnerHTML={{ __html: html }}
+      dangerouslySetInnerHTML={renderedHtml}
     />
   );
 }
