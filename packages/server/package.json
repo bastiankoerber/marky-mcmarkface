@@ -9,9 +9,9 @@
     "dev": "tsx watch src/index.ts"
   },
   "dependencies": {
-    "@hono/node-server": "^2.1.0",
+    "@hono/node-server": "^2.1.1",
     "@marky-mcmarkface/viewer-api": "workspace:*",
-    "hono": "^4.13.0"
+    "hono": "^4.13.3"
   },
   "optionalDependencies": {
     "@napi-rs/keyring": "^1.1.6"
