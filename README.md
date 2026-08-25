@@ -89,6 +89,13 @@ the exact pull-request commit, falling back to the exact base commit when the br
 including in private repositories. Missing or blocked images get an explicit placeholder;
 arbitrary external images remain blocked so opening a document cannot be used as a tracking pixel.
 
+**Renders Mermaid diagrams.** Fenced `mermaid` blocks inside Markdown and standalone `.mmd` or
+`.mermaid` files render as diagrams in both light and dark themes. Invalid diagrams keep their
+source visible with an explicit error, and *Source* remains available for line-by-line review.
+Large diagrams have fit, natural-size, and zoom controls with a scrollable viewport. Mermaid
+links work like Markdown links: repository-relative destinations open in the review and ordinary
+web links open in a new tab.
+
 **Nothing is sent until you submit.** Comments collect into one review, the way GitHub's own
 review model works — the author gets a single notification rather than a drip of emails while
 you read. Drafts survive a reload and are listed on the dashboard, so an unsubmitted review is

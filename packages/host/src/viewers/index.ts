@@ -18,7 +18,12 @@ const markdown = defineViewer({
   manifest: {
     id: 'marky-mcmarkface.markdown',
     displayName: 'Rich diff',
-    selector: [{ filenamePattern: '**/*.md' }, { filenamePattern: '**/*.mdx' }],
+    selector: [
+      { filenamePattern: '**/*.md' },
+      { filenamePattern: '**/*.mdx' },
+      { filenamePattern: '**/*.mmd' },
+      { filenamePattern: '**/*.mermaid' },
+    ],
     rank: BUILTIN_RANK,
     priority: 'default',
     safe: true,

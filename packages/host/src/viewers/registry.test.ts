@@ -15,7 +15,9 @@ function viewer(id: string, patterns: string[], extra: Partial<ViewerManifest> =
   });
 }
 
-const markdown = viewer('marky-mcmarkface.markdown', ['**/*.md', '**/*.mdx'], { rank: BUILTIN_RANK });
+const markdown = viewer('marky-mcmarkface.markdown', ['**/*.md', '**/*.mdx', '**/*.mmd', '**/*.mermaid'], {
+  rank: BUILTIN_RANK,
+});
 const sourceDiff = viewer('marky-mcmarkface.source-diff', ['**/*'], { rank: 9000 });
 
 describe('ViewerRegistry', () => {
@@ -23,6 +25,11 @@ describe('ViewerRegistry', () => {
     const r = new ViewerRegistry().registerAll([sourceDiff, markdown]);
     expect(r.resolve('docs/intro.md')?.manifest.id).toBe('marky-mcmarkface.markdown');
     expect(r.resolve('src/main.go')?.manifest.id).toBe('marky-mcmarkface.source-diff');
+  });
+
+  it.each(['architecture.mmd', 'docs/data-flow.mermaid'])('opens standalone Mermaid source with the rich viewer: %s', (path) => {
+    const r = new ViewerRegistry().registerAll([sourceDiff, markdown]);
+    expect(r.resolve(path)?.manifest.id).toBe('marky-mcmarkface.markdown');
   });
 
   it('never dead-ends, because source-diff claims everything', () => {

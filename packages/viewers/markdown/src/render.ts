@@ -304,6 +304,9 @@ function renderNode(ctx: Ctx, node: Nodes): string {
       const inner = resolved?.exact
         ? emitLeaf(ctx, 'code', resolved.span, node.value, lang)
         : `<code${lang}${attrs(ctx, resolved?.span ?? null)}>${esc(node.value)}</code>`;
+      if (node.lang?.toLowerCase() === 'mermaid') {
+        return `<div data-marky-mcmarkface-mermaid=""${attrs(ctx, span)}><pre>${inner}</pre></div>`;
+      }
       return `<pre${attrs(ctx, span)}>${inner}</pre>`;
     }
     case 'strong':
