@@ -4,6 +4,7 @@ import { diffMarkdown } from './blockdiff.js';
 import { parseMarkdown, parseStandaloneMermaid } from './parse.js';
 import { renderToHtml } from './render.js';
 import {
+  ensureMermaidNodeContrast,
   prepareMermaidLinks,
   replacementForMermaid,
   sourceFromDiagram,
@@ -156,5 +157,58 @@ describe('Mermaid links', () => {
     expect(link.getAttribute('rel')).toBe('noreferrer');
     expect(link.getAttribute('role')).toBe('link');
     expect(link.getAttribute('aria-label')).toBe('Details');
+  });
+});
+
+describe('Mermaid node contrast', () => {
+  function nodeFixture(fill: string, labelStyle = ''): { svg: SVGElement; label: SVGGElement } {
+    const dom = new JSDOM(
+      '<!doctype html><body><svg xmlns="http://www.w3.org/2000/svg">' +
+        '<g class="node"><rect class="label-container" style="fill:' +
+        fill +
+        ' !important"></rect><g class="label" style="' +
+        labelStyle +
+        '"><text><tspan>Node</tspan></text></g></g></svg></body>',
+    );
+    const svg = dom.window.document.querySelector('svg') as unknown as SVGElement;
+    return { svg, label: svg.querySelector('g.label') as SVGGElement };
+  }
+
+  it('uses dark ink on an authored light node fill', () => {
+    const { svg, label } = nodeFixture('#efe8ff');
+    ensureMermaidNodeContrast(svg);
+    expect(label.style.getPropertyValue('color')).toBe('rgb(31, 35, 40)');
+    expect(label.querySelector('text')?.style.getPropertyValue('fill')).toBe('#1f2328');
+  });
+
+  it('uses light ink on an authored dark node fill', () => {
+    const { svg, label } = nodeFixture('#172554');
+    ensureMermaidNodeContrast(svg);
+    expect(label.style.getPropertyValue('color')).toBe('rgb(246, 248, 250)');
+    expect(label.querySelector('text')?.style.getPropertyValue('fill')).toBe('#f6f8fa');
+  });
+
+  it('chooses the higher-contrast ink for a mid-tone fill', () => {
+    const { svg, label } = nodeFixture('#808080');
+    ensureMermaidNodeContrast(svg);
+    expect(label.style.getPropertyValue('color')).toBe('rgb(31, 35, 40)');
+  });
+
+  it('preserves an authored label colour', () => {
+    const { svg, label } = nodeFixture('#efe8ff', 'color:#654321 !important');
+    ensureMermaidNodeContrast(svg);
+    expect(label.style.getPropertyValue('color')).toBe('rgb(101, 67, 33)');
+    expect(label.querySelector('text')?.style.getPropertyValue('fill')).toBe('');
+  });
+
+  it('leaves theme-owned fills and labels untouched', () => {
+    const dom = new JSDOM(
+      '<!doctype html><body><svg xmlns="http://www.w3.org/2000/svg"><g class="node">' +
+        '<rect class="label-container"></rect><g class="label"><text>Node</text></g>' +
+        '</g></svg></body>',
+    );
+    const svg = dom.window.document.querySelector('svg') as unknown as SVGElement;
+    ensureMermaidNodeContrast(svg);
+    expect(svg.querySelector<SVGGElement>('g.label')?.getAttribute('style')).toBeNull();
   });
 });

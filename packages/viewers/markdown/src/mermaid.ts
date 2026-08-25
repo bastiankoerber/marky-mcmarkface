@@ -86,6 +86,7 @@ export function enhanceMermaidDiagrams(
         // inherit the wrapper's block stamp, so diagram selections degrade honestly to the full
         // source block and existing comments remain visibly positioned beside the diagram.
         diagram.element.replaceChildren(output);
+        ensureMermaidNodeContrast(svg);
         diagram.element.setAttribute('data-marky-mcmarkface-mermaid-rendered', '');
         const controlsCleanup = controls.mount();
         const editCleanup = openEditor ? makeDiagramEditable(viewport, openEditor) : () => {};
@@ -259,6 +260,7 @@ function createMermaidEditor({
       previewCleanup();
       previewCleanup = controls.mount();
       preview.replaceChildren(output);
+      ensureMermaidNodeContrast(svg);
       valid = true;
       status.textContent = 'Preview updated';
       updateSubmit();
@@ -331,6 +333,111 @@ function editorButton(document: Document, label: string, primary = false): HTMLB
   button.className = `md-mermaid-editor-button${primary ? ' primary' : ''}`;
   button.textContent = label;
   return button;
+}
+
+const DARK_NODE_INK = '#1f2328';
+const LIGHT_NODE_INK = '#f6f8fa';
+const DARK_NODE_INK_RGB: RgbColour = { red: 31, green: 35, blue: 40, alpha: 1 };
+const LIGHT_NODE_INK_RGB: RgbColour = { red: 246, green: 248, blue: 250, alpha: 1 };
+
+/**
+ * Keep authored node fills legible when they cross Mermaid themes.
+ *
+ * Mermaid's dark theme supplies pale label text globally. A diagram can then apply a light
+ * `classDef ... fill:#...` without a matching `color`, producing pale text on a pale node. The
+ * authored fill is emitted as an inline style, so limit correction to that case and leave the
+ * theme's own node palette alone. An authored label color remains authoritative.
+ */
+export function ensureMermaidNodeContrast(svg: SVGElement): void {
+  const view = svg.ownerDocument.defaultView;
+  if (!view) return;
+
+  for (const node of svg.querySelectorAll<SVGGElement>('g.node')) {
+    const label = node.querySelector<SVGGElement>('g.label');
+    if (!label || hasAuthoredLabelColour(label)) continue;
+
+    const shape = Array.from(
+      node.querySelectorAll<SVGGraphicsElement>('.label-container, rect, circle, ellipse, polygon, path'),
+    ).find(hasAuthoredFill);
+    if (!shape) continue;
+
+    const fill = parseComputedRgb(
+      view.getComputedStyle(shape).fill || shape.style.getPropertyValue('fill'),
+    );
+    if (!fill || fill.alpha < 0.95) continue;
+    const fillLuminance = relativeLuminance(fill);
+    const darkContrast = contrastRatio(fillLuminance, relativeLuminance(DARK_NODE_INK_RGB));
+    const lightContrast = contrastRatio(fillLuminance, relativeLuminance(LIGHT_NODE_INK_RGB));
+    const ink = darkContrast >= lightContrast ? DARK_NODE_INK : LIGHT_NODE_INK;
+
+    label.style.setProperty('color', ink, 'important');
+    for (const text of label.querySelectorAll<SVGElement>('text, tspan')) {
+      text.style.setProperty('fill', ink, 'important');
+    }
+  }
+}
+
+function hasAuthoredFill(element: SVGElement): boolean {
+  const declaration = element.getAttribute('style') ?? '';
+  return (
+    /(?:^|;)\s*fill\s*:/i.test(declaration) &&
+    !/(?:^|;)\s*fill\s*:\s*(?:none|transparent)\b/i.test(declaration)
+  );
+}
+
+function hasAuthoredLabelColour(label: SVGElement): boolean {
+  const declarations = [label, ...label.querySelectorAll<SVGElement>('text, tspan')]
+    .map((element) => element.getAttribute('style') ?? '')
+    .join(';');
+  return /(?:^|;)\s*(?:color|fill)\s*:/i.test(declarations);
+}
+
+interface RgbColour {
+  red: number;
+  green: number;
+  blue: number;
+  alpha: number;
+}
+
+function parseComputedRgb(value: string): RgbColour | null {
+  const hex = value.trim().match(/^#([\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i)?.[1];
+  if (hex) {
+    const expanded = hex.length <= 4 ? Array.from(hex, (digit) => digit + digit).join('') : hex;
+    return {
+      red: Number.parseInt(expanded.slice(0, 2), 16),
+      green: Number.parseInt(expanded.slice(2, 4), 16),
+      blue: Number.parseInt(expanded.slice(4, 6), 16),
+      alpha: expanded.length === 8 ? Number.parseInt(expanded.slice(6, 8), 16) / 255 : 1,
+    };
+  }
+  const match = value.match(
+    /^rgba?\(\s*([\d.]+)[, ]+\s*([\d.]+)[, ]+\s*([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/i,
+  );
+  if (!match) return null;
+  const alphaValue = match[4];
+  const alpha = alphaValue?.endsWith('%')
+    ? Number.parseFloat(alphaValue) / 100
+    : Number.parseFloat(alphaValue ?? '1');
+  return {
+    red: Number.parseFloat(match[1]!),
+    green: Number.parseFloat(match[2]!),
+    blue: Number.parseFloat(match[3]!),
+    alpha,
+  };
+}
+
+function relativeLuminance({ red, green, blue }: RgbColour): number {
+  const linear = (channel: number) => {
+    const value = channel / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linear(red) + 0.7152 * linear(green) + 0.0722 * linear(blue);
+}
+
+function contrastRatio(first: number, second: number): number {
+  const lighter = Math.max(first, second);
+  const darker = Math.min(first, second);
+  return (lighter + 0.05) / (darker + 0.05);
 }
 
 interface DiagramControls {
